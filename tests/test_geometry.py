@@ -38,6 +38,34 @@ class ShapeFlowGeometryTests(unittest.TestCase):
         self.assertEqual(len(obj.data.vertices), 8)
         self.assertEqual(len(obj.data.polygons), 6)
 
+    def test_negative_push_moves_existing_cube_face(self):
+        bpy.ops.mesh.primitive_cube_add(size=2.0, location=(0, 0, 0))
+        obj = bpy.context.object
+        top = max(obj.data.polygons, key=lambda polygon: polygon.normal.z)
+        extrude_face(obj, top.index, -0.5)
+        self.assertEqual(len(obj.data.vertices), 8)
+        self.assertEqual(len(obj.data.polygons), 6)
+        self.assertAlmostEqual(max(vertex.co.z for vertex in obj.data.vertices), 0.5)
+        self.assertAlmostEqual(min(vertex.co.z for vertex in obj.data.vertices), -1.0)
+
+    def test_positive_pull_moves_existing_cube_face_without_copy(self):
+        bpy.ops.mesh.primitive_cube_add(size=2.0, location=(0, 0, 0))
+        obj = bpy.context.object
+        top = max(obj.data.polygons, key=lambda polygon: polygon.normal.z)
+        extrude_face(obj, top.index, 0.5)
+        self.assertEqual(len(obj.data.vertices), 8)
+        self.assertEqual(len(obj.data.polygons), 6)
+        self.assertAlmostEqual(max(vertex.co.z for vertex in obj.data.vertices), 1.5)
+
+    def test_copy_extrusion_preserves_source_face(self):
+        bpy.ops.mesh.primitive_cube_add(size=2.0, location=(0, 0, 0))
+        obj = bpy.context.object
+        top = max(obj.data.polygons, key=lambda polygon: polygon.normal.z)
+        extrude_face(obj, top.index, 0.5, copy=True)
+        self.assertEqual(len(obj.data.vertices), 12)
+        self.assertEqual(len(obj.data.polygons), 11)
+        self.assertAlmostEqual(max(vertex.co.z for vertex in obj.data.vertices), 1.5)
+
     def test_split_face(self):
         obj = self.rectangle()
         split_face_between_edges(obj, 0, 0, 0.5, 2, 0.5)

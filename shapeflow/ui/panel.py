@@ -11,7 +11,7 @@ class SHAPEFLOW_PT_main(bpy.types.Panel):
     def draw(self, context):
         layout = self.layout
         settings = context.scene.shapeflow
-        layout.label(text="ShapeFlow 0.3.1")
+        layout.label(text="ShapeFlow 0.3.2")
         layout.operator("shapeflow.open_workspace", icon='WORKSPACE')
         box = layout.box()
         box.label(text="Drawing")
@@ -30,6 +30,7 @@ class SHAPEFLOW_PT_main(bpy.types.Panel):
         box = layout.box()
         box.label(text="Direct Modeling")
         box.prop(settings, "length_unit", text="Typed unit")
+        box.prop(settings, "copy_mode", toggle=True, icon='DUPLICATE')
         box.operator("shapeflow.extrude_face", text="Extrude", icon='MOD_SOLIDIFY')
         box.operator("shapeflow.split_face", text="Split", icon='MOD_BOOLEAN')
         layout.separator()

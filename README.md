@@ -1,6 +1,6 @@
 # ShapeFlow
 
-ShapeFlow 0.3.1 is a Blender 5.2 add-on for direct modelling with native `bpy.types.Mesh` objects. It provides a deliberately small workflow: draw a rectangular face, extrude a face, split a face from boundary to boundary, and extrude again. The result remains editable with every normal Blender mesh tool and modifier.
+ShapeFlow 0.3.2 is a Blender 5.2 add-on for direct modelling with native `bpy.types.Mesh` objects. It provides a deliberately small workflow: draw a rectangular face, extrude or push a face, split a face from boundary to boundary, and extrude again. The result remains editable with every normal Blender mesh tool and modifier.
 
 ## Install and activate
 
@@ -25,7 +25,7 @@ Press **Esc** or right-click to cancel any active operation. Each completed oper
 ## Tools
 
 - **Draw Rectangle** creates a new object containing one quad on the selected world plane.
-- **Extrude** enters a tool mode, highlights the face under the pointer, and starts a real BMesh face extrusion when that face is dragged. Typed values use the unit selected in the panel.
+- **Extrude** enters a tool mode and highlights the face under the pointer. With **Copy** disabled, a face on a closed solid is pushed or pulled by moving its existing boundary, so no internal source face remains. With **Copy** enabled, ShapeFlow preserves the source and extrudes a duplicate with side walls. A lone profile still becomes a solid in either mode. Typed values use the unit selected in the panel.
 - **Split** snaps each click to the nearest boundary edge of the face under the pointer and creates a real topological edge.
 
 ## Current limitations

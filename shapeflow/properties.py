@@ -8,6 +8,11 @@ def _sync_scene_units(self, context):
 
 
 class ShapeFlowSettings(bpy.types.PropertyGroup):
+    copy_mode: BoolProperty(
+        name="Copy",
+        description="Duplicate before transforming; future Move and Rotate tools will use the same setting",
+        default=False,
+    )
     drawing_plane: EnumProperty(
         name="Drawing Plane",
         items=(

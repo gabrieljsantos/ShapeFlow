@@ -80,7 +80,7 @@ class SHAPEFLOW_OT_extrude_face(ViewportPreviewMixin, bpy.types.Operator):
     def _confirm(self, context):
         obj, face_index, _points = self._picked
         try:
-            extrude_face(obj, face_index, self._distance)
+            extrude_face(obj, face_index, self._distance, copy=context.scene.shapeflow.copy_mode)
         except ValueError as error:
             self.report({'WARNING'}, f"ShapeFlow: {error}")
             return False
