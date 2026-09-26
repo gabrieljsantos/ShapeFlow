@@ -1,5 +1,6 @@
 import bpy
-from bpy.props import BoolProperty, EnumProperty, FloatProperty, IntProperty, PointerProperty
+from bpy.app.handlers import persistent
+from bpy.props import BoolProperty, EnumProperty, FloatProperty, IntProperty, PointerProperty, StringProperty
 
 
 def _sync_scene_units(self, context):
@@ -68,9 +69,46 @@ class ShapeFlowSettings(bpy.types.PropertyGroup):
 CLASSES = (ShapeFlowSettings,)
 
 
+@persistent
+def reset_mode_on_load(_unused):
+    for window_manager in bpy.data.window_managers:
+        window_manager.shapeflow_mode = False
+        window_manager.shapeflow_workspace = ""
+
+
+@persistent
+def disable_mode_after_workspace_change(_scene, _depsgraph):
+    for window_manager in bpy.data.window_managers:
+        if not window_manager.shapeflow_mode or not window_manager.shapeflow_workspace:
+            continue
+        if all(window.workspace.name != window_manager.shapeflow_workspace for window in window_manager.windows):
+            window_manager.shapeflow_mode = False
+            window_manager.shapeflow_workspace = ""
+
+
 def register_properties():
     bpy.types.Scene.shapeflow = PointerProperty(type=ShapeFlowSettings)
+    bpy.types.WindowManager.shapeflow_mode = BoolProperty(
+        name="ShapeFlow Mode",
+        default=False,
+        options={'SKIP_SAVE'},
+    )
+    bpy.types.WindowManager.shapeflow_workspace = StringProperty(
+        name="ShapeFlow Workspace",
+        default="",
+        options={'HIDDEN', 'SKIP_SAVE'},
+    )
+    if reset_mode_on_load not in bpy.app.handlers.load_post:
+        bpy.app.handlers.load_post.append(reset_mode_on_load)
+    if disable_mode_after_workspace_change not in bpy.app.handlers.depsgraph_update_post:
+        bpy.app.handlers.depsgraph_update_post.append(disable_mode_after_workspace_change)
 
 
 def unregister_properties():
+    if reset_mode_on_load in bpy.app.handlers.load_post:
+        bpy.app.handlers.load_post.remove(reset_mode_on_load)
+    if disable_mode_after_workspace_change in bpy.app.handlers.depsgraph_update_post:
+        bpy.app.handlers.depsgraph_update_post.remove(disable_mode_after_workspace_change)
+    del bpy.types.WindowManager.shapeflow_workspace
+    del bpy.types.WindowManager.shapeflow_mode
     del bpy.types.Scene.shapeflow

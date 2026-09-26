@@ -89,6 +89,13 @@ class ShapeFlowGeometryTests(unittest.TestCase):
         self.assertEqual(parse_coordinate_pair("10.37;12"), (10.37, 12.0))
         self.assertEqual(parse_coordinate_pair("10,37;12"), (10.37, 12.0))
 
+    def test_mode_starts_disabled(self):
+        if not hasattr(bpy.types.WindowManager, 'shapeflow_mode'):
+            import shapeflow
+            shapeflow.register()
+            self.addCleanup(shapeflow.unregister)
+        self.assertFalse(bpy.context.window_manager.shapeflow_mode)
+
 
 if __name__ == '__main__':
     suite = unittest.defaultTestLoader.loadTestsFromTestCase(ShapeFlowGeometryTests)

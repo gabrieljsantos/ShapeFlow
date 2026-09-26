@@ -29,7 +29,10 @@ class SHAPEFLOW_OT_draw_rectangle(ViewportPreviewMixin, bpy.types.Operator):
 
     @classmethod
     def poll(cls, context):
-        return context.area and context.area.type == 'VIEW_3D'
+        return (
+            context.area and context.area.type == 'VIEW_3D'
+            and context.window_manager.shapeflow_mode
+        )
 
     def invoke(self, context, event):
         self._start = None

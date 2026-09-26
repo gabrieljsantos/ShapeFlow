@@ -17,7 +17,10 @@ class SHAPEFLOW_OT_split_face(ViewportPreviewMixin, bpy.types.Operator):
 
     @classmethod
     def poll(cls, context):
-        return context.area and context.area.type == 'VIEW_3D'
+        return (
+            context.area and context.area.type == 'VIEW_3D'
+            and context.window_manager.shapeflow_mode
+        )
 
     def invoke(self, context, event):
         self._target = None
