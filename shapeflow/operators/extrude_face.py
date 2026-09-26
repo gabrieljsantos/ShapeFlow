@@ -2,7 +2,12 @@ import bpy
 from bpy_extras import view3d_utils
 
 from ..mesh.extrusion import extrude_face
-from ..utils.geometry import typed_length_to_blender_units, unit_suffix
+from ..utils.geometry import (
+    blender_units_to_typed_length,
+    snap_scalar,
+    typed_length_to_blender_units,
+    unit_suffix,
+)
 from ..utils.picking import pick_mesh_face, viewport_mouse
 from ..utils.viewport import ViewportPreviewMixin, draw_polyline
 
@@ -19,6 +24,7 @@ class SHAPEFLOW_OT_extrude_face(ViewportPreviewMixin, bpy.types.Operator):
     _distance = 0.0
     _start_mouse = None
     _numeric = ""
+    _snap_bypassed = False
 
     @classmethod
     def poll(cls, context):
@@ -41,13 +47,22 @@ class SHAPEFLOW_OT_extrude_face(ViewportPreviewMixin, bpy.types.Operator):
         self._dragging = False
         self._distance = 0.0
         self._numeric = ""
+        self._snap_bypassed = False
 
     def _set_status(self, context):
         suffix = unit_suffix(context.scene.shapeflow.length_unit)
         if self._dragging:
-            value = self._numeric if self._numeric else f"{self._distance:.4g} BU"
+            settings = context.scene.shapeflow
+            if self._numeric:
+                value = self._numeric
+            else:
+                display_value = blender_units_to_typed_length(
+                    self._distance, settings.length_unit, context.scene.unit_settings.scale_length
+                )
+                value = f"{display_value:.4g} {suffix}"
+            snap_state = "free" if self._snap_bypassed else "step"
             context.workspace.status_text_set(
-                f"ShapeFlow Extrude: drag • type a value ({suffix}) [{value}] • release/Enter confirms • Esc cancels"
+                f"ShapeFlow Extrude: drag [{value}, {snap_state}] • Shift bypasses step • type exact value • release/Enter confirms"
             )
         else:
             context.workspace.status_text_set("ShapeFlow Extrude: hover a face, then click and drag • Esc cancels")
@@ -128,12 +143,25 @@ class SHAPEFLOW_OT_extrude_face(ViewportPreviewMixin, bpy.types.Operator):
                 if axis.length > 1.0e-5:
                     axis.normalize()
                     delta = (mouse[0] - self._start_mouse[0], mouse[1] - self._start_mouse[1])
-                    self._distance = (delta[0] * axis.x + delta[1] * axis.y) * 0.01
+                    raw_distance = (delta[0] * axis.x + delta[1] * axis.y) * 0.01
+                    settings = context.scene.shapeflow
+                    use_grid = settings.snap_enabled and settings.grid_snap and not event.shift
+                    self._snap_bypassed = not use_grid
+                    if use_grid:
+                        spacing = typed_length_to_blender_units(
+                            settings.grid_spacing,
+                            settings.length_unit,
+                            context.scene.unit_settings.scale_length,
+                        )
+                        self._distance = snap_scalar(raw_distance, spacing)
+                    else:
+                        self._distance = raw_distance
             context.area.tag_redraw()
             self._set_status(context)
         if self._dragging and event.ascii and (event.ascii.isdigit() or event.ascii in '.,-'):
             character = '.' if event.ascii == ',' else event.ascii
             self._numeric += character
+            self._snap_bypassed = True
             try:
                 self._distance = typed_length_to_blender_units(
                     float(self._numeric),

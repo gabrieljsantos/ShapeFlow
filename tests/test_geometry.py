@@ -12,7 +12,12 @@ if ROOT not in sys.path:
 from shapeflow.mesh.creation import create_rectangle_object
 from shapeflow.mesh.extrusion import extrude_face
 from shapeflow.mesh.splitting import split_face_between_edges
-from shapeflow.utils.geometry import parse_coordinate_pair, snap_scalar, typed_length_to_blender_units
+from shapeflow.utils.geometry import (
+    blender_units_to_typed_length,
+    parse_coordinate_pair,
+    snap_scalar,
+    typed_length_to_blender_units,
+)
 
 
 class ShapeFlowGeometryTests(unittest.TestCase):
@@ -80,6 +85,7 @@ class ShapeFlowGeometryTests(unittest.TestCase):
     def test_millimeter_input_conversion(self):
         self.assertAlmostEqual(typed_length_to_blender_units(1.5, 'MILLIMETERS'), 0.0015)
         self.assertAlmostEqual(typed_length_to_blender_units(1.5, 'MILLIMETERS', 0.001), 1.5)
+        self.assertAlmostEqual(blender_units_to_typed_length(0.0015, 'MILLIMETERS'), 1.5)
 
     def test_grid_snap(self):
         self.assertAlmostEqual(snap_scalar(0.00137, 0.001), 0.001)

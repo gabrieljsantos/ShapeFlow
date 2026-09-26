@@ -15,7 +15,7 @@ class SHAPEFLOW_PT_main(bpy.types.Panel):
         mode_enabled = window_manager.shapeflow_mode
         active = window_manager.shapeflow_active_tool
 
-        layout.label(text="ShapeFlow 0.5.0")
+        layout.label(text="ShapeFlow 0.5.1")
         layout.operator("shapeflow.open_workspace", icon='WORKSPACE')
         if mode_enabled:
             row = layout.row()
@@ -59,9 +59,9 @@ class SHAPEFLOW_PT_main(bpy.types.Panel):
         header.label(text="Alignment settings")
         if body:
             body.enabled = settings.snap_enabled
-            body.prop(settings, "grid_snap")
+            body.prop(settings, "grid_snap", text="Use step snapping")
             body.prop(settings, "geometry_snap")
-            body.prop(settings, "grid_spacing")
+            body.prop(settings, "grid_spacing", text="Step size")
             body.prop(settings, "snap_distance")
             body.label(text="Hold Shift for temporary bypass", icon='EVENT_SHIFT')
 

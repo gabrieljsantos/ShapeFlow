@@ -1,6 +1,6 @@
 # ShapeFlow
 
-ShapeFlow 0.5.0 is a Blender 5.2 add-on for direct modelling with persistent Rectangle and Extrude modes over native Blender meshes. The result remains editable with every normal Blender mesh tool and modifier.
+ShapeFlow 0.5.1 is a Blender 5.2 add-on for direct modelling with persistent Rectangle and Extrude modes over native Blender meshes. The result remains editable with every normal Blender mesh tool and modifier.
 
 ## Install and activate
 
@@ -17,7 +17,7 @@ ShapeFlow 0.5.0 is a Blender 5.2 add-on for direct modelling with persistent Rec
 
 1. Click **Enter ShapeFlow Mode**, choose the **XY**, **XZ**, or **YZ** drawing plane, and start from a view where that plane is visible.
 2. Click the **R** tool. Grid and Geometry alignment are enabled by default. Create as many rectangles as needed—the tool remains active until Escape or another tool is chosen. Hover each letter button to see its name and purpose.
-3. Choose the typed unit (millimeters by default), then click the **E** tool. Hovering highlights the available face in green. Press and drag that face; release to confirm. The tool remains active for consecutive extrusions. While dragging, type a precise value such as `1.5` and press Enter to extrude 1.5 mm.
+3. Choose the typed unit (millimeters by default), then click the **E** tool. Hovering highlights the available face in green. Press and drag that face; the distance follows ShapeFlow's **Step size**, independently of Blender's visible grid. Hold Shift while dragging for continuous movement, or type an exact value such as `1.5` and press Enter. The tool remains active for consecutive extrusions.
 4. Put the pointer over the face to cut and click **Split**. Click a point on one boundary edge, then a point on a different boundary edge.
 5. Put the pointer over either new face, click **Extrude**, move, and click.
 

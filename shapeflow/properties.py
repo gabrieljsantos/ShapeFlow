@@ -29,8 +29,8 @@ class ShapeFlowSettings(bpy.types.PropertyGroup):
         default=True,
     )
     grid_snap: BoolProperty(
-        name="Align to grid",
-        description="Automatically align drawing points to the configured grid",
+        name="Use step snapping",
+        description="Quantize drawing and extrusion using ShapeFlow's configured step, independently of Blender's visible grid",
         default=True,
     )
     geometry_snap: BoolProperty(
@@ -39,8 +39,8 @@ class ShapeFlowSettings(bpy.types.PropertyGroup):
         default=True,
     )
     grid_spacing: FloatProperty(
-        name="Grid spacing",
-        description="Grid interval in the selected unit",
+        name="Step size",
+        description="ShapeFlow movement interval in the selected unit; this does not use Blender's visible grid",
         default=1.0,
         min=0.0001,
         precision=4,

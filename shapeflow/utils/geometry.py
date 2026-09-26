@@ -15,6 +15,13 @@ def typed_length_to_blender_units(value, unit, scale_length=1.0):
     return float(value) * UNIT_TO_METERS[unit] / scale_length
 
 
+def blender_units_to_typed_length(value, unit, scale_length=1.0):
+    """Convert Blender units to the selected display unit."""
+    if scale_length <= 0.0:
+        scale_length = 1.0
+    return float(value) * scale_length / UNIT_TO_METERS[unit]
+
+
 def unit_suffix(unit):
     return {'MILLIMETERS': 'mm', 'CENTIMETERS': 'cm', 'METERS': 'm'}[unit]
 
