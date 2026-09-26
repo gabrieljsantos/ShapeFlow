@@ -4,7 +4,7 @@ from mathutils import Vector
 from ..mesh.creation import create_profile_object
 from ..utils.geometry import plane_axes, regular_polygon_points
 from ..utils.picking import ray_plane, viewport_mouse
-from ..utils.snapping import collect_plane_geometry, snap_draw_point
+from ..utils.snapping import collect_plane_geometry, collect_scene_snap_geometry, snap_draw_point, travel_3d_cursor
 from ..utils.viewport import ViewportPreviewMixin, draw_polyline
 
 
@@ -50,8 +50,11 @@ class SHAPEFLOW_OT_draw_polygon(ViewportPreviewMixin, bpy.types.Operator):
 
     def _reset(self, context):
         self._start = None
-        self._current = None
+        self._current = Vector(context.scene.shapeflow.drawing_origin)
         self._snap_result = None
+        self._last_mouse = None
+        self._travel_axis = None
+        self._scene_candidates, self._scene_edges = collect_scene_snap_geometry(context)
         self._candidates, self._edges = collect_plane_geometry(
             context, context.scene.shapeflow.drawing_plane, context.scene.shapeflow.drawing_origin
         )
@@ -68,8 +71,16 @@ class SHAPEFLOW_OT_draw_polygon(ViewportPreviewMixin, bpy.types.Operator):
         if viewport is None:
             return None
         settings = context.scene.shapeflow
+        if self._start is None:
+            point, _kind, axis = travel_3d_cursor(
+                context, viewport[0], viewport[1], self._last_mouse, self._current,
+                settings, self._scene_candidates, self._scene_edges, bypass=event.shift,
+            )
+            self._last_mouse = viewport[1]
+            self._current = point; self._travel_axis = axis; settings.drawing_origin = point
+            return point
         _u, _v, normal = plane_axes(settings.drawing_plane)
-        raw = ray_plane(context, viewport[1], Vector(settings.drawing_origin), normal)
+        raw = ray_plane(context, viewport[1], self._start, normal)
         if raw is None:
             return None
         self._snap_result = snap_draw_point(
@@ -102,6 +113,7 @@ class SHAPEFLOW_OT_draw_polygon(ViewportPreviewMixin, bpy.types.Operator):
                 return {'RUNNING_MODAL'}
             if self._start is None:
                 self._start = self._current = point
+                self._travel_axis = None
             else:
                 settings = context.scene.shapeflow
                 try:
@@ -119,9 +131,18 @@ class SHAPEFLOW_OT_draw_polygon(ViewportPreviewMixin, bpy.types.Operator):
         return {'RUNNING_MODAL'}
 
     def draw_preview(self, context):
-        if self._start is None or self._current is None:
+        if self._current is None:
             return
         settings = context.scene.shapeflow
+        axis_u, axis_v, normal = plane_axes(settings.drawing_plane)
+        span = max(0.05, context.space_data.region_3d.view_distance * 0.15)
+        colors = ((1, .15, .15, .8), (.15, 1, .15, .8), (.15, .4, 1, .8))
+        for axis, color in zip((axis_u, axis_v, normal), colors):
+            if self._travel_axis is not None and abs(self._travel_axis.dot(axis)) > 0.9:
+                color = (1, .8, .15, 1)
+            draw_polyline([self._current - axis * span, self._current + axis * span], color=color)
+        if self._start is None:
+            return
         try:
             points = regular_polygon_points(
                 self._start, self._current, settings.drawing_plane,

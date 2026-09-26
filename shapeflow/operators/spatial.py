@@ -7,8 +7,6 @@ from ..utils.picking import pick_mesh_face, ray_plane, viewport_mouse
 from ..utils.snapping import (
     collect_object_snap_geometry,
     collect_scene_snap_geometry,
-    collect_scene_snap_points,
-    nearest_screen_candidate,
     nearest_screen_geometry,
 )
 from ..utils.viewport import ViewportPreviewMixin, draw_polyline
@@ -47,7 +45,7 @@ def _axis_drag(context, region, origin, mouse_start, mouse_now, allowed='XYZ', b
     if not candidates:
         return Vector(), None
     _score, pixels, axis = max(candidates, key=lambda item: item[0])
-    distance = pixels * 0.01
+    distance = pixels * max(context.space_data.region_3d.view_distance, 0.001) * 2.0 / max(region.height, 1)
     settings = context.scene.shapeflow
     if settings.snap_enabled and settings.grid_snap and not bypass:
         distance = snap_scalar(distance, _step(context))
@@ -61,61 +59,6 @@ class _SpatialToolMixin(ViewportPreviewMixin):
             return True
         region, mouse = viewport
         return not (0 <= mouse[0] <= region.width and 0 <= mouse[1] <= region.height)
-
-
-class SHAPEFLOW_OT_position_origin(_SpatialToolMixin, bpy.types.Operator):
-    bl_idname = "shapeflow.position_origin"
-    bl_label = "Position Creation Origin"
-    bl_description = "G: drag the 3D ShapeFlow origin along a projected world axis; snap to existing geometry"
-    bl_options = {'REGISTER', 'BLOCKING'}
-
-    def invoke(self, context, _event):
-        context.window_manager.shapeflow_active_tool = 'ORIGIN'
-        self._dragging = False
-        self._origin = Vector(context.scene.shapeflow.drawing_origin)
-        self._current = self._origin.copy()
-        self._axis = None
-        self._candidates = collect_scene_snap_points(context)
-        self.add_preview(context)
-        context.window_manager.modal_handler_add(self)
-        context.workspace.status_text_set("ShapeFlow Origin: drag in an axis direction • geometry snaps in 3D • Esc stops")
-        return {'RUNNING_MODAL'}
-
-    def modal(self, context, event):
-        wm = context.window_manager
-        if not wm.shapeflow_mode or wm.shapeflow_active_tool != 'ORIGIN':
-            self._finish(context); return {'CANCELLED'}
-        if event.type == 'ESC':
-            wm.shapeflow_active_tool = 'NONE'; self._finish(context); return {'CANCELLED'}
-        if self._outside_viewport(context, event):
-            return {'PASS_THROUGH'}
-        region, mouse = viewport_mouse(context, event)
-        if event.type == 'LEFTMOUSE' and event.value == 'PRESS':
-            self._dragging = True; self._mouse_start = mouse; self._origin = Vector(context.scene.shapeflow.drawing_origin)
-        elif event.type == 'MOUSEMOVE' and self._dragging:
-            settings = context.scene.shapeflow
-            snap = nearest_screen_candidate(context, region, mouse, self._candidates, settings.snap_distance)
-            if snap and settings.snap_enabled and settings.geometry_snap and not event.shift:
-                self._current, self._axis = snap.point.copy(), None
-            else:
-                offset, self._axis = _axis_drag(context, region, self._origin, self._mouse_start, mouse, 'XYZ', event.shift)
-                self._current = self._origin + offset
-            settings.drawing_origin = self._current
-            context.area.tag_redraw()
-        elif event.type == 'LEFTMOUSE' and event.value == 'RELEASE' and self._dragging:
-            self._dragging = False
-            bpy.ops.ed.undo_push(message="ShapeFlow Position Origin")
-        return {'RUNNING_MODAL'}
-
-    def draw_preview(self, context):
-        span = max(0.1, context.space_data.region_3d.view_distance * 0.2)
-        colors = {'X': (1, .15, .15, .9), 'Y': (.15, 1, .15, .9), 'Z': (.2, .45, 1, .9)}
-        for name, axis in AXES.items():
-            color = (1, .8, .15, 1) if self._axis == axis else colors[name]
-            draw_polyline([self._current - axis * span, self._current + axis * span], color=color)
-
-    def _finish(self, context):
-        self.remove_preview(context); context.workspace.status_text_set(None)
 
 
 class SHAPEFLOW_OT_move_object(_SpatialToolMixin, bpy.types.Operator):

@@ -15,7 +15,7 @@ class SHAPEFLOW_PT_main(bpy.types.Panel):
         mode_enabled = window_manager.shapeflow_mode
         active = window_manager.shapeflow_active_tool
 
-        layout.label(text="ShapeFlow 0.7.3")
+        layout.label(text="ShapeFlow 0.8.0")
         layout.operator("shapeflow.open_workspace", icon='WORKSPACE')
         if mode_enabled:
             row = layout.row()
@@ -35,12 +35,11 @@ class SHAPEFLOW_PT_main(bpy.types.Panel):
         row.prop(settings, "drawing_plane", expand=True)
 
         space = tools.box()
-        space.label(text="3D creation origin")
-        space.prop(settings, "drawing_origin", text="")
+        space.label(text="3D construction cursor")
+        space.prop(settings, "drawing_origin", text="Position")
         row = space.row(align=True)
-        operator = row.operator("shapeflow.activate_tool", text="G  Position", depress=active == 'ORIGIN')
-        operator.tool = 'ORIGIN'
         row.prop(settings, "show_native_grid", text="Grid", toggle=True, icon='GRID')
+        row.label(text="Moves inside creation tools")
 
         options = tools.box()
         options.label(text="Options")
@@ -99,8 +98,6 @@ class SHAPEFLOW_PT_main(bpy.types.Panel):
             tools.label(text=f"Polygon ({settings.polygon_sides}) active — Esc to stop", icon='RADIOBUT_ON')
         elif active == 'EXTRUDE':
             tools.label(text="Extrude active — Esc to stop", icon='RADIOBUT_ON')
-        elif active == 'ORIGIN':
-            tools.label(text="3D origin active — Esc to stop", icon='RADIOBUT_ON')
         elif active == 'MOVE':
             tools.label(text="Move active — Esc to stop", icon='RADIOBUT_ON')
         else:

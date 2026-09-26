@@ -156,6 +156,43 @@ def nearest_screen_geometry(context, region, mouse, candidates, edges, threshold
     return best[1] if best else None
 
 
+def travel_3d_cursor(context, region, mouse, previous_mouse, point, settings, candidates, edges, bypass=False):
+    """Advance a construction cursor along the world axis matching mouse direction."""
+    geometry = nearest_screen_geometry(context, region, mouse, candidates, edges, settings.snap_distance)
+    if geometry and settings.snap_enabled and settings.geometry_snap and not bypass:
+        return geometry.point.copy(), geometry.kind, None
+    if previous_mouse is None:
+        return Vector(point), "CURSOR", None
+    delta = Vector(mouse) - Vector(previous_mouse)
+    if delta.length < 0.25:
+        return Vector(point), "CURSOR", None
+    rv3d = context.space_data.region_3d
+    origin_screen = view3d_utils.location_3d_to_region_2d(region, rv3d, point)
+    if origin_screen is None:
+        return Vector(point), "CURSOR", None
+    options = []
+    for name, axis in (
+        ('X', Vector((1, 0, 0))), ('Y', Vector((0, 1, 0))), ('Z', Vector((0, 0, 1))),
+    ):
+        axis_screen = view3d_utils.location_3d_to_region_2d(region, rv3d, Vector(point) + axis)
+        if axis_screen is None or (axis_screen - origin_screen).length < 1.0e-5:
+            continue
+        direction = axis_screen - origin_screen
+        direction.normalize()
+        options.append((abs(delta.normalized().dot(direction)), delta.dot(direction), name, axis))
+    if not options:
+        return Vector(point), "CURSOR", None
+    _alignment, signed_pixels, name, axis = max(options, key=lambda item: item[0])
+    distance = signed_pixels * max(rv3d.view_distance, 0.001) * 2.0 / max(region.height, 1)
+    if settings.snap_enabled and settings.grid_snap and not bypass:
+        spacing = typed_length_to_blender_units(
+            settings.grid_spacing, settings.length_unit, context.scene.unit_settings.scale_length
+        )
+        distance = snap_scalar(distance, spacing)
+    result = Vector(point) + axis * distance
+    return result, f"AXIS_{name}", axis
+
+
 def _screen_distance(region, rv3d, a, b):
     a2 = view3d_utils.location_3d_to_region_2d(region, rv3d, a)
     b2 = view3d_utils.location_3d_to_region_2d(region, rv3d, b)

@@ -32,7 +32,6 @@ class SHAPEFLOW_OT_activate_tool(bpy.types.Operator):
         items=(
             ('RECTANGLE', "Rectangle", "Create rectangles continuously"),
             ('EXTRUDE', "Extrude", "Push or pull faces continuously"),
-            ('ORIGIN', "Origin", "Position the 3D creation origin"),
             ('MOVE', "Move", "Move whole objects"),
         )
     )
@@ -42,7 +41,6 @@ class SHAPEFLOW_OT_activate_tool(bpy.types.Operator):
         descriptions = {
             'RECTANGLE': "Rectangle: create consecutive rectangular faces; remains active until Escape or another tool",
             'EXTRUDE': "Extrude: push or pull consecutive faces; remains active until Escape or another tool",
-            'ORIGIN': "Origin: move the 3D creation origin along world axes or snap it to geometry",
             'MOVE': "Move: drag whole objects with axis/plane constraints and geometry snapping",
         }
         return descriptions.get(properties.tool, "Activate a ShapeFlow tool")
@@ -60,8 +58,6 @@ class SHAPEFLOW_OT_activate_tool(bpy.types.Operator):
             bpy.ops.shapeflow.draw_rectangle('INVOKE_DEFAULT')
         elif self.tool == 'EXTRUDE':
             bpy.ops.shapeflow.extrude_face('INVOKE_DEFAULT')
-        elif self.tool == 'ORIGIN':
-            bpy.ops.shapeflow.position_origin('INVOKE_DEFAULT')
         elif self.tool == 'MOVE':
             bpy.ops.shapeflow.move_object('INVOKE_DEFAULT')
         return {'FINISHED'}

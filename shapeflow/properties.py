@@ -158,7 +158,6 @@ def register_properties():
             ('RECTANGLE', "Rectangle", "Create rectangles continuously"),
             ('POLYGON', "Polygon", "Create regular polygons continuously"),
             ('EXTRUDE', "Extrude", "Push or pull faces continuously"),
-            ('ORIGIN', "Origin", "Position the ShapeFlow creation origin"),
             ('MOVE', "Move", "Move whole objects with snapping"),
         ),
         default='NONE',

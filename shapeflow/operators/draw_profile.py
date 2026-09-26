@@ -12,7 +12,12 @@ from ..utils.geometry import (
     unit_suffix,
 )
 from ..utils.picking import ray_plane, viewport_mouse
-from ..utils.snapping import collect_plane_geometry, snap_draw_point
+from ..utils.snapping import (
+    collect_plane_geometry,
+    collect_scene_snap_geometry,
+    snap_draw_point,
+    travel_3d_cursor,
+)
 from ..utils.viewport import ViewportPreviewMixin, draw_polyline, draw_text
 
 
@@ -55,6 +60,10 @@ class SHAPEFLOW_OT_draw_rectangle(ViewportPreviewMixin, bpy.types.Operator):
         self._current = None
         self._snap_result = None
         self._numeric = ""
+        self._current = Vector(context.scene.shapeflow.drawing_origin)
+        self._last_mouse = None
+        self._travel_axis = None
+        self._scene_candidates, self._scene_edges = collect_scene_snap_geometry(context)
         self._candidates, self._edges = collect_plane_geometry(
             context, context.scene.shapeflow.drawing_plane,
             context.scene.shapeflow.drawing_origin,
@@ -73,8 +82,20 @@ class SHAPEFLOW_OT_draw_rectangle(ViewportPreviewMixin, bpy.types.Operator):
         if viewport is None:
             return None
         plane = context.scene.shapeflow.drawing_plane
+        if self._start is None:
+            point, kind, axis = travel_3d_cursor(
+                context, viewport[0], viewport[1], self._last_mouse, self._current,
+                context.scene.shapeflow, self._scene_candidates, self._scene_edges,
+                bypass=event.shift,
+            )
+            self._last_mouse = viewport[1]
+            self._current = point
+            self._travel_axis = axis
+            context.scene.shapeflow.drawing_origin = point
+            self._snap_result = type('TravelSnap', (), {'kind': kind, 'guide_u': None, 'guide_v': None})()
+            return point
         _, _, normal = plane_axes(plane)
-        raw = ray_plane(context, viewport[1], Vector(context.scene.shapeflow.drawing_origin), normal)
+        raw = ray_plane(context, viewport[1], self._start, normal)
         if raw is None:
             return None
         self._snap_result = snap_draw_point(
@@ -151,6 +172,7 @@ class SHAPEFLOW_OT_draw_rectangle(ViewportPreviewMixin, bpy.types.Operator):
                 return {'RUNNING_MODAL'}
             if self._start is None:
                 self._start = self._current = point
+                self._travel_axis = None
                 self._numeric = ""
                 self._set_status(context)
             else:
@@ -168,13 +190,15 @@ class SHAPEFLOW_OT_draw_rectangle(ViewportPreviewMixin, bpy.types.Operator):
 
     def draw_preview(self, context):
         if self._current is not None:
-            axis_u, axis_v, _normal = plane_axes(context.scene.shapeflow.drawing_plane)
+            axis_u, axis_v, normal = plane_axes(context.scene.shapeflow.drawing_plane)
             rv3d = context.space_data.region_3d
-            span = max(1.0, rv3d.view_distance * 2.0)
+            span = max(0.05, rv3d.view_distance * (0.15 if self._start is None else 2.0))
             color_u = (1.0, 0.8, 0.15, 0.9) if self._snap_result and self._snap_result.guide_u else (0.8, 0.12, 0.12, 0.55)
             color_v = (1.0, 0.8, 0.15, 0.9) if self._snap_result and self._snap_result.guide_v else (0.8, 0.12, 0.12, 0.55)
+            color_n = (1.0, 0.8, 0.15, 0.95) if self._travel_axis is not None and abs(self._travel_axis.dot(normal)) > 0.9 else (0.15, 0.4, 1.0, 0.8)
             draw_polyline([self._current - axis_u * span, self._current + axis_u * span], color=color_u)
             draw_polyline([self._current - axis_v * span, self._current + axis_v * span], color=color_v)
+            draw_polyline([self._current - normal * span, self._current + normal * span], color=color_n)
             if self._snap_result and self._snap_result.guide_u:
                 draw_polyline([self._current, self._snap_result.guide_u], color=color_u)
             if self._snap_result and self._snap_result.guide_v:

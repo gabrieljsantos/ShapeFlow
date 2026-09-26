@@ -3,7 +3,7 @@
 bl_info = {
     "name": "ShapeFlow",
     "author": "ShapeFlow Contributors",
-    "version": (0, 7, 3),
+    "version": (0, 8, 0),
     "blender": (5, 2, 0),
     "location": "3D Viewport > Sidebar > ShapeFlow",
     "description": "Draw, extrude and split native Blender mesh faces",
