@@ -16,7 +16,7 @@ ShapeFlow is a Blender 5.2 add-on for direct modelling with native `bpy.types.Me
 
 1. Choose the **XY**, **XZ**, or **YZ** drawing plane. Start from a view where that plane is visible.
 2. Click **Draw Rectangle**, click the first corner, move the pointer, then click the opposite corner.
-3. Put the pointer over the face and click **Extrude**. Move along the orange preview and click to confirm. You may type a Blender-unit distance and press Enter instead.
+3. Choose the typed unit (millimeters by default), then click **Extrude**. Hovering highlights the available face in green. Press and drag that face; release to confirm. While dragging, type a precise value such as `1.5` and press Enter to extrude 1.5 mm.
 4. Put the pointer over the face to cut and click **Split**. Click a point on one boundary edge, then a point on a different boundary edge.
 5. Put the pointer over either new face, click **Extrude**, move, and click.
 
@@ -25,7 +25,7 @@ Press **Esc** or right-click to cancel any active operation. Each completed oper
 ## Tools
 
 - **Draw Rectangle** creates a new object containing one quad on the selected world plane.
-- **Extrude** picks the face under the pointer and performs a real BMesh face extrusion with side walls.
+- **Extrude** enters a tool mode, highlights the face under the pointer, and starts a real BMesh face extrusion when that face is dragged. Typed values use the unit selected in the panel.
 - **Split** snaps each click to the nearest boundary edge of the face under the pointer and creates a real topological edge.
 
 ## Current limitations
@@ -33,7 +33,7 @@ Press **Esc** or right-click to cancel any active operation. Each completed oper
 - Drawing is axis-aligned on an explicit world XY/XZ/YZ plane. Drawing directly into an existing mesh face is planned.
 - Split requires two different boundary edges on the same face. It does not yet create enclosed internal cuts.
 - The first version supports rectangles, not free polygons.
-- Drag distance is screen-derived; typed values use the current Blender scene unit convention and are stored internally in Blender units.
+- Drag distance is screen-derived. Typed values use the millimeter, centimeter, or meter unit selected in the ShapeFlow panel and are converted to Blender units using the scene scale.
 - The Snap switch reserves the UI and data model for richer snapping; boundary snapping is always enforced by Split in this release.
 - Picking uses the evaluated viewport mesh. Objects with topology-changing modifiers can produce face-index ambiguity; apply or temporarily disable those modifiers before editing with ShapeFlow.
 

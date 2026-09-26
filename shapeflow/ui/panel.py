@@ -19,8 +19,8 @@ class SHAPEFLOW_PT_main(bpy.types.Panel):
         box.operator("shapeflow.draw_rectangle", text="Draw Rectangle", icon='MESH_PLANE')
         box = layout.box()
         box.label(text="Direct Modeling")
+        box.prop(settings, "length_unit", text="Typed unit")
         box.operator("shapeflow.extrude_face", text="Extrude", icon='MOD_SOLIDIFY')
         box.operator("shapeflow.split_face", text="Split", icon='MOD_BOOLEAN')
         layout.separator()
-        layout.label(text="Hover a face before Extrude or Split", icon='INFO')
-
+        layout.label(text="Activate a tool, then choose a face", icon='INFO')

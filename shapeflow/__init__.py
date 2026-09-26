@@ -3,7 +3,7 @@
 bl_info = {
     "name": "ShapeFlow",
     "author": "ShapeFlow Contributors",
-    "version": (0, 1, 0),
+    "version": (0, 2, 0),
     "blender": (5, 2, 0),
     "location": "3D Viewport > Sidebar > ShapeFlow",
     "description": "Draw, extrude and split native Blender mesh faces",
@@ -28,4 +28,3 @@ def unregister():
     properties.unregister_properties()
     for cls in reversed(CLASSES):
         __import__("bpy").utils.unregister_class(cls)
-

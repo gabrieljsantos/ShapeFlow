@@ -12,6 +12,7 @@ if ROOT not in sys.path:
 from shapeflow.mesh.creation import create_rectangle_object
 from shapeflow.mesh.extrusion import extrude_face
 from shapeflow.mesh.splitting import split_face_between_edges
+from shapeflow.utils.geometry import typed_length_to_blender_units
 
 
 class ShapeFlowGeometryTests(unittest.TestCase):
@@ -48,10 +49,13 @@ class ShapeFlowGeometryTests(unittest.TestCase):
         extrude_face(obj, 0, 0.5)
         self.assertGreaterEqual(len(obj.data.polygons), 6)
 
+    def test_millimeter_input_conversion(self):
+        self.assertAlmostEqual(typed_length_to_blender_units(1.5, 'MILLIMETERS'), 0.0015)
+        self.assertAlmostEqual(typed_length_to_blender_units(1.5, 'MILLIMETERS', 0.001), 1.5)
+
 
 if __name__ == '__main__':
     suite = unittest.defaultTestLoader.loadTestsFromTestCase(ShapeFlowGeometryTests)
     result = unittest.TextTestRunner(verbosity=2).run(suite)
     if not result.wasSuccessful():
         raise SystemExit(1)
-
