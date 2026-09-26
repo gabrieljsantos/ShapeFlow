@@ -17,9 +17,21 @@ class ShapeFlowSettings(bpy.types.PropertyGroup):
         ),
         default='XY',
     )
-    snap_enabled: BoolProperty(name="Snap", default=True)
-    grid_snap: BoolProperty(name="Grid", default=True)
-    geometry_snap: BoolProperty(name="Geometry", default=True)
+    snap_enabled: BoolProperty(
+        name="Automatic alignment",
+        description="Keep ShapeFlow alignment active during normal operation",
+        default=True,
+    )
+    grid_snap: BoolProperty(
+        name="Align to grid",
+        description="Automatically align drawing points to the configured grid",
+        default=True,
+    )
+    geometry_snap: BoolProperty(
+        name="Align to geometry",
+        description="Automatically align with existing vertices, edges, midpoints, and face centers",
+        default=True,
+    )
     grid_spacing: FloatProperty(
         name="Grid spacing",
         description="Grid interval in the selected unit",
