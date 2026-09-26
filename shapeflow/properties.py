@@ -99,7 +99,7 @@ class ShapeFlowSettings(bpy.types.PropertyGroup):
     snap_distance: IntProperty(
         name="Snap distance",
         description="Screen distance used to detect geometry guides",
-        default=14,
+        default=24,
         min=4,
         max=50,
         subtype='PIXEL',

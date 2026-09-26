@@ -128,9 +128,29 @@ class SHAPEFLOW_OT_move_object(_SpatialToolMixin, bpy.types.Operator):
         context.window_manager.shapeflow_active_tool = 'MOVE'
         self._dragging = False; self._object = None; self._copied = False
         self._anchor = None; self._snap_target = None; self._snap_kind = None
+        self._hover_object = None; self._hover_snap = None; self._hover_face = None
         self.add_preview(context); context.window_manager.modal_handler_add(self)
         context.workspace.status_text_set("ShapeFlow Move: drag an object • Copy duplicates first • Esc stops")
         return {'RUNNING_MODAL'}
+
+    def _update_hover(self, context, region, mouse):
+        picked = pick_mesh_face(context, mouse)
+        if not picked:
+            self._hover_object = None; self._hover_snap = None; self._hover_face = None
+            context.area.tag_redraw()
+            return
+        obj, face_index, hit, _normal = picked
+        candidates, edges = collect_object_snap_geometry(obj)
+        self._hover_snap = nearest_screen_geometry(
+            context, region, mouse, candidates, edges, context.scene.shapeflow.snap_distance
+        )
+        polygon = obj.data.polygons[face_index]
+        self._hover_object = obj
+        self._hover_hit = hit.copy()
+        self._hover_face = tuple(obj.matrix_world @ obj.data.vertices[index].co for index in polygon.vertices)
+        kind = self._hover_snap.kind.lower() if self._hover_snap else "face point"
+        context.workspace.status_text_set(f"ShapeFlow Move: {kind} ready • click and drag")
+        context.area.tag_redraw()
 
     def modal(self, context, event):
         wm = context.window_manager
@@ -143,20 +163,22 @@ class SHAPEFLOW_OT_move_object(_SpatialToolMixin, bpy.types.Operator):
         if self._outside_viewport(context, event):
             return {'PASS_THROUGH'}
         region, mouse = viewport_mouse(context, event)
+        if event.type == 'MOUSEMOVE' and not self._dragging:
+            self._update_hover(context, region, mouse)
+            return {'RUNNING_MODAL'}
         if event.type == 'LEFTMOUSE' and event.value == 'PRESS' and not self._dragging:
-            picked = pick_mesh_face(context, mouse)
-            if not picked: return {'RUNNING_MODAL'}
-            obj, _face, hit, _normal = picked
+            if self._hover_object is None:
+                self._update_hover(context, region, mouse)
+            if self._hover_object is None:
+                return {'RUNNING_MODAL'}
+            obj = self._hover_object
+            hit = self._hover_hit
+            source_snap = self._hover_snap
             if context.scene.shapeflow.copy_mode:
                 duplicate = obj.copy(); duplicate.data = obj.data.copy(); context.collection.objects.link(duplicate); obj = duplicate
                 self._copied = True
             else:
                 self._copied = False
-            source_candidates, source_edges = collect_object_snap_geometry(obj)
-            source_snap = nearest_screen_geometry(
-                context, region, mouse, source_candidates, source_edges,
-                context.scene.shapeflow.snap_distance,
-            )
             self._object = obj
             self._start_location = obj.location.copy()
             self._anchor = source_snap.point.copy() if source_snap else hit.copy()
@@ -164,6 +186,7 @@ class SHAPEFLOW_OT_move_object(_SpatialToolMixin, bpy.types.Operator):
             self._mouse_start = mouse
             self._candidates, self._edges = collect_scene_snap_geometry(context, exclude=obj)
             self._snap_target = None; self._snap_kind = None; self._dragging = True
+            self._hover_object = None
             context.workspace.status_text_set(f"ShapeFlow Move: grabbed {self._anchor_kind.lower()} • drag near target geometry")
         elif event.type == 'MOUSEMOVE' and self._dragging:
             settings = context.scene.shapeflow
@@ -202,7 +225,8 @@ class SHAPEFLOW_OT_move_object(_SpatialToolMixin, bpy.types.Operator):
                     f"ShapeFlow Move: {self._anchor_kind.lower()} → {self._snap_kind.lower()} • release to confirm"
                 )
         elif event.type == 'LEFTMOUSE' and event.value == 'RELEASE' and self._dragging:
-            self._dragging = False; self._snap_target = None; bpy.ops.ed.undo_push(message="ShapeFlow Move Object")
+            self._dragging = False; self._snap_target = None; self._object = None; self._anchor = None
+            bpy.ops.ed.undo_push(message="ShapeFlow Move Object")
             context.workspace.status_text_set("ShapeFlow Move: drag another object • Esc stops")
         return {'RUNNING_MODAL'}
 
@@ -215,7 +239,18 @@ class SHAPEFLOW_OT_move_object(_SpatialToolMixin, bpy.types.Operator):
         self._dragging = False; self._object = None; self._anchor = None; self._snap_target = None
 
     def draw_preview(self, context):
-        span = max(0.002, context.space_data.region_3d.view_distance * 0.012)
+        span = max(0.003, context.space_data.region_3d.view_distance * 0.02)
+        if not self._dragging and self._hover_object is not None:
+            cyan = (0.1, 0.85, 1.0, 1.0)
+            snap = self._hover_snap
+            if snap and snap.highlight:
+                draw_polyline(list(snap.highlight), color=cyan, closed=snap.kind == 'FACE_CENTER')
+            elif self._hover_face:
+                draw_polyline(list(self._hover_face), color=cyan, closed=True)
+            point = snap.point if snap else self._hover_hit
+            draw_polyline([point - AXES['X'] * span, point + AXES['X'] * span], color=cyan)
+            draw_polyline([point - AXES['Y'] * span, point + AXES['Y'] * span], color=cyan)
+            draw_polyline([point - AXES['Z'] * span, point + AXES['Z'] * span], color=cyan)
         if self._anchor is not None and self._object is not None:
             moved_anchor = self._anchor + (self._object.location - self._start_location)
             draw_polyline([moved_anchor - AXES['X'] * span, moved_anchor + AXES['X'] * span], color=(1, .8, .1, 1))

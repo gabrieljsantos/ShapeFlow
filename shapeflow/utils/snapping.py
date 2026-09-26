@@ -18,6 +18,7 @@ from .geometry import (
 class SnapCandidate:
     point: Vector
     kind: str
+    highlight: tuple | None = None
 
 
 @dataclass
@@ -85,10 +86,10 @@ def collect_object_snap_geometry(obj):
         a = vertices[edge.vertices[0]].copy()
         b = vertices[edge.vertices[1]].copy()
         edges.append((a, b))
-        candidates.append(SnapCandidate((a + b) * 0.5, "MIDPOINT"))
-    candidates.extend(
-        SnapCandidate(matrix @ polygon.center, "FACE_CENTER") for polygon in obj.data.polygons
-    )
+        candidates.append(SnapCandidate((a + b) * 0.5, "MIDPOINT", (a.copy(), b.copy())))
+    for polygon in obj.data.polygons:
+        outline = tuple(vertices[index].copy() for index in polygon.vertices)
+        candidates.append(SnapCandidate(matrix @ polygon.center, "FACE_CENTER", outline))
     return candidates, edges
 
 
@@ -140,7 +141,7 @@ def nearest_screen_geometry(context, region, mouse, candidates, edges, threshold
         screen_point = screen_a.lerp(screen_b, factor)
         distance = (screen_point - mouse).length
         if distance <= threshold and (best is None or distance < best[0]):
-            best = (distance, SnapCandidate(a.lerp(b, factor), "EDGE"))
+            best = (distance, SnapCandidate(a.lerp(b, factor), "EDGE", (a.copy(), b.copy())))
     return best[1] if best else None
 
 
