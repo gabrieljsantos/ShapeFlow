@@ -116,6 +116,12 @@ class ShapeFlowGeometryTests(unittest.TestCase):
         self.assertEqual(sum(candidate.kind == 'MIDPOINT' for candidate in candidates), 12)
         self.assertEqual(sum(candidate.kind == 'FACE_CENTER' for candidate in candidates), 6)
 
+    def test_move_snap_priority(self):
+        from shapeflow.utils.snapping import SNAP_PRIORITY
+        self.assertLess(SNAP_PRIORITY['VERTEX'], SNAP_PRIORITY['MIDPOINT'])
+        self.assertLess(SNAP_PRIORITY['MIDPOINT'], SNAP_PRIORITY['EDGE'])
+        self.assertLess(SNAP_PRIORITY['EDGE'], SNAP_PRIORITY['FACE_CENTER'])
+
     def test_coordinate_pair(self):
         self.assertEqual(parse_coordinate_pair("10.37;12"), (10.37, 12.0))
         self.assertEqual(parse_coordinate_pair("10,37;12"), (10.37, 12.0))

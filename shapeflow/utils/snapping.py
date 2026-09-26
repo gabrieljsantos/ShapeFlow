@@ -14,6 +14,15 @@ from .geometry import (
 )
 
 
+SNAP_PRIORITY = {
+    "VERTEX": 0,
+    "MIDPOINT": 1,
+    "EDGE": 2,
+    "FACE_CENTER": 3,
+    "FACE_POINT": 4,
+}
+
+
 @dataclass
 class SnapCandidate:
     point: Vector
@@ -128,8 +137,9 @@ def nearest_screen_geometry(context, region, mouse, candidates, edges, threshold
         if screen is None:
             continue
         distance = (screen - mouse).length
-        if distance <= threshold and (best is None or distance < best[0]):
-            best = (distance, candidate)
+        score = (SNAP_PRIORITY.get(candidate.kind, 99), distance)
+        if distance <= threshold and (best is None or score < best[0]):
+            best = (score, candidate)
     for a, b in edges:
         screen_a = view3d_utils.location_3d_to_region_2d(region, rv3d, a)
         screen_b = view3d_utils.location_3d_to_region_2d(region, rv3d, b)
@@ -140,8 +150,9 @@ def nearest_screen_geometry(context, region, mouse, candidates, edges, threshold
         factor = max(0.0, min(1.0, factor))
         screen_point = screen_a.lerp(screen_b, factor)
         distance = (screen_point - mouse).length
-        if distance <= threshold and (best is None or distance < best[0]):
-            best = (distance, SnapCandidate(a.lerp(b, factor), "EDGE", (a.copy(), b.copy())))
+        score = (SNAP_PRIORITY["EDGE"], distance)
+        if distance <= threshold and (best is None or score < best[0]):
+            best = (score, SnapCandidate(a.lerp(b, factor), "EDGE", (a.copy(), b.copy())))
     return best[1] if best else None
 
 
