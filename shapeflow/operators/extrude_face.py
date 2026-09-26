@@ -3,7 +3,7 @@ from bpy_extras import view3d_utils
 
 from ..mesh.extrusion import extrude_face
 from ..utils.geometry import typed_length_to_blender_units, unit_suffix
-from ..utils.picking import pick_mesh_face
+from ..utils.picking import pick_mesh_face, viewport_mouse
 from ..utils.viewport import ViewportPreviewMixin, draw_polyline
 
 
@@ -46,7 +46,8 @@ class SHAPEFLOW_OT_extrude_face(ViewportPreviewMixin, bpy.types.Operator):
             context.workspace.status_text_set("ShapeFlow Extrude: hover a face, then click and drag • Esc cancels")
 
     def _update_hover(self, context, event):
-        picked = pick_mesh_face(context, (event.mouse_region_x, event.mouse_region_y))
+        viewport = viewport_mouse(context, event)
+        picked = pick_mesh_face(context, viewport[1]) if viewport else None
         if picked is None:
             self._hovered = None
             return
@@ -70,7 +71,8 @@ class SHAPEFLOW_OT_extrude_face(ViewportPreviewMixin, bpy.types.Operator):
         self._picked = (obj, face_index, points)
         self._normal = (obj.matrix_world.to_3x3() @ polygon.normal).normalized()
         self._center = obj.matrix_world @ polygon.center
-        self._start_mouse = (event.mouse_region_x, event.mouse_region_y)
+        viewport = viewport_mouse(context, event)
+        self._start_mouse = viewport[1]
         self._dragging = True
         self._set_status(context)
         return True
@@ -93,13 +95,17 @@ class SHAPEFLOW_OT_extrude_face(ViewportPreviewMixin, bpy.types.Operator):
             self._update_hover(context, event)
             context.area.tag_redraw()
         elif event.type == 'MOUSEMOVE' and not self._numeric:
-            center_2d = view3d_utils.location_3d_to_region_2d(context.region, context.region_data, self._center)
-            normal_2d = view3d_utils.location_3d_to_region_2d(context.region, context.region_data, self._center + self._normal)
+            viewport = viewport_mouse(context, event)
+            region = viewport[0]
+            mouse = viewport[1]
+            rv3d = context.space_data.region_3d
+            center_2d = view3d_utils.location_3d_to_region_2d(region, rv3d, self._center)
+            normal_2d = view3d_utils.location_3d_to_region_2d(region, rv3d, self._center + self._normal)
             if center_2d is not None and normal_2d is not None:
                 axis = normal_2d - center_2d
                 if axis.length > 1.0e-5:
                     axis.normalize()
-                    delta = (event.mouse_region_x - self._start_mouse[0], event.mouse_region_y - self._start_mouse[1])
+                    delta = (mouse[0] - self._start_mouse[0], mouse[1] - self._start_mouse[1])
                     self._distance = (delta[0] * axis.x + delta[1] * axis.y) * 0.01
             context.area.tag_redraw()
             self._set_status(context)

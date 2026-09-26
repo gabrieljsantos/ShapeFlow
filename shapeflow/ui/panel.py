@@ -11,6 +11,7 @@ class SHAPEFLOW_PT_main(bpy.types.Panel):
     def draw(self, context):
         layout = self.layout
         settings = context.scene.shapeflow
+        layout.label(text="ShapeFlow 0.2.1")
         layout.operator("shapeflow.open_workspace", icon='WORKSPACE')
         box = layout.box()
         box.label(text="Drawing")

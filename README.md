@@ -1,6 +1,6 @@
 # ShapeFlow
 
-ShapeFlow is a Blender 5.2 add-on for direct modelling with native `bpy.types.Mesh` objects. It provides a deliberately small workflow: draw a rectangular face, extrude a face, split a face from boundary to boundary, and extrude again. The result remains editable with every normal Blender mesh tool and modifier.
+ShapeFlow 0.2.1 is a Blender 5.2 add-on for direct modelling with native `bpy.types.Mesh` objects. It provides a deliberately small workflow: draw a rectangular face, extrude a face, split a face from boundary to boundary, and extrude again. The result remains editable with every normal Blender mesh tool and modifier.
 
 ## Install and activate
 

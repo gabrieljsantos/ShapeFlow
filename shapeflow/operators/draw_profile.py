@@ -3,7 +3,7 @@ from mathutils import Vector
 
 from ..mesh.creation import create_rectangle_object
 from ..utils.geometry import plane_axes, rectangle_corners
-from ..utils.picking import ray_plane
+from ..utils.picking import ray_plane, viewport_mouse
 from ..utils.viewport import ViewportPreviewMixin, draw_polyline
 
 
@@ -29,9 +29,12 @@ class SHAPEFLOW_OT_draw_rectangle(ViewportPreviewMixin, bpy.types.Operator):
         return {'RUNNING_MODAL'}
 
     def _mouse_point(self, context, event):
+        viewport = viewport_mouse(context, event)
+        if viewport is None:
+            return None
         plane = context.scene.shapeflow.drawing_plane
         _, _, normal = plane_axes(plane)
-        return ray_plane(context, (event.mouse_region_x, event.mouse_region_y), Vector((0, 0, 0)), normal)
+        return ray_plane(context, viewport[1], Vector((0, 0, 0)), normal)
 
     def modal(self, context, event):
         if event.type in {'ESC', 'RIGHTMOUSE'}:
@@ -66,4 +69,3 @@ class SHAPEFLOW_OT_draw_rectangle(ViewportPreviewMixin, bpy.types.Operator):
     def _finish(self, context):
         self.remove_preview(context)
         context.workspace.status_text_set(None)
-

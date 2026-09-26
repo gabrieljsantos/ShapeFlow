@@ -4,9 +4,25 @@ from bpy_extras import view3d_utils
 from .geometry import nearest_point_on_segment
 
 
+def viewport_region(context):
+    """Return the main WINDOW region, even when invoked from the N-panel."""
+    if context.area is None or context.area.type != 'VIEW_3D':
+        return None
+    return next((region for region in context.area.regions if region.type == 'WINDOW'), None)
+
+
+def viewport_mouse(context, event):
+    region = viewport_region(context)
+    if region is None:
+        return None
+    return region, (event.mouse_x - region.x, event.mouse_y - region.y)
+
+
 def mouse_ray(context, mouse):
-    origin = view3d_utils.region_2d_to_origin_3d(context.region, context.region_data, mouse)
-    direction = view3d_utils.region_2d_to_vector_3d(context.region, context.region_data, mouse)
+    region = viewport_region(context)
+    rv3d = context.space_data.region_3d
+    origin = view3d_utils.region_2d_to_origin_3d(region, rv3d, mouse)
+    direction = view3d_utils.region_2d_to_vector_3d(region, rv3d, mouse)
     return origin, direction.normalized()
 
 

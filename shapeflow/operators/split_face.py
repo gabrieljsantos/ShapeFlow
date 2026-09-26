@@ -1,7 +1,7 @@
 import bpy
 
 from ..mesh.splitting import split_face_between_edges
-from ..utils.picking import nearest_face_boundary, pick_mesh_face
+from ..utils.picking import nearest_face_boundary, pick_mesh_face, viewport_mouse
 from ..utils.viewport import ViewportPreviewMixin, draw_polyline
 
 
@@ -20,19 +20,12 @@ class SHAPEFLOW_OT_split_face(ViewportPreviewMixin, bpy.types.Operator):
         return context.area and context.area.type == 'VIEW_3D'
 
     def invoke(self, context, event):
-        picked = pick_mesh_face(context, (event.mouse_region_x, event.mouse_region_y))
-        if picked is None:
-            self.report({'WARNING'}, "ShapeFlow: place the cursor over the face to split")
-            return {'CANCELLED'}
-        obj, face_index, location, _normal = picked
-        self._target = (obj, face_index)
+        self._target = None
         self._start = None
-        self._hover = nearest_face_boundary(obj, face_index, location)
-        context.view_layer.objects.active = obj
-        obj.select_set(True)
+        self._hover = None
         self.add_preview(context)
         context.window_manager.modal_handler_add(self)
-        context.workspace.status_text_set("ShapeFlow Split: click two different boundary edges • Esc cancels")
+        context.workspace.status_text_set("ShapeFlow Split: hover a face and click two different boundary edges • Esc cancels")
         return {'RUNNING_MODAL'}
 
     def modal(self, context, event):
@@ -40,10 +33,17 @@ class SHAPEFLOW_OT_split_face(ViewportPreviewMixin, bpy.types.Operator):
             self._finish(context)
             return {'CANCELLED'}
         if event.type == 'MOUSEMOVE':
-            picked = pick_mesh_face(context, (event.mouse_region_x, event.mouse_region_y))
-            if picked and picked[0] == self._target[0] and picked[1] == self._target[1]:
+            viewport = viewport_mouse(context, event)
+            picked = pick_mesh_face(context, viewport[1]) if viewport else None
+            if self._target is None and picked:
+                self._target = (picked[0], picked[1])
+                context.view_layer.objects.active = picked[0]
+                picked[0].select_set(True)
+            if picked and self._target and picked[0] == self._target[0] and picked[1] == self._target[1]:
                 self._hover = nearest_face_boundary(picked[0], picked[1], picked[2])
-                context.area.tag_redraw()
+            else:
+                self._hover = None
+            context.area.tag_redraw()
         if event.type == 'LEFTMOUSE' and event.value == 'PRESS' and self._hover:
             if self._start is None:
                 self._start = self._hover
@@ -74,4 +74,3 @@ class SHAPEFLOW_OT_split_face(ViewportPreviewMixin, bpy.types.Operator):
     def _finish(self, context):
         self.remove_preview(context)
         context.workspace.status_text_set(None)
-
