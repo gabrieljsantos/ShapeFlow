@@ -19,6 +19,30 @@ def unit_suffix(unit):
     return {'MILLIMETERS': 'mm', 'CENTIMETERS': 'cm', 'METERS': 'm'}[unit]
 
 
+def snap_scalar(value, spacing):
+    if spacing <= 0.0:
+        return value
+    return round(value / spacing) * spacing
+
+
+def plane_coordinates(point, plane):
+    axis_u, axis_v, _normal = plane_axes(plane)
+    return point.dot(axis_u), point.dot(axis_v)
+
+
+def point_from_plane_coordinates(u, v, plane):
+    axis_u, axis_v, _normal = plane_axes(plane)
+    return axis_u * u + axis_v * v
+
+
+def parse_coordinate_pair(text):
+    """Parse two decimal values separated by a semicolon."""
+    parts = [part.strip().replace(',', '.') for part in text.split(';')]
+    if len(parts) != 2 or not all(parts):
+        raise ValueError("Use two values separated by semicolon")
+    return float(parts[0]), float(parts[1])
+
+
 def plane_axes(plane):
     if plane == 'XZ':
         return Vector((1, 0, 0)), Vector((0, 0, 1)), Vector((0, 1, 0))

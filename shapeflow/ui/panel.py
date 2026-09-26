@@ -11,12 +11,19 @@ class SHAPEFLOW_PT_main(bpy.types.Panel):
     def draw(self, context):
         layout = self.layout
         settings = context.scene.shapeflow
-        layout.label(text="ShapeFlow 0.2.1")
+        layout.label(text="ShapeFlow 0.3.0")
         layout.operator("shapeflow.open_workspace", icon='WORKSPACE')
         box = layout.box()
         box.label(text="Drawing")
         box.prop(settings, "drawing_plane", expand=True)
         box.prop(settings, "snap_enabled")
+        snap_col = box.column()
+        snap_col.enabled = settings.snap_enabled
+        row = snap_col.row(align=True)
+        row.prop(settings, "grid_snap", toggle=True)
+        row.prop(settings, "geometry_snap", toggle=True)
+        snap_col.prop(settings, "grid_spacing")
+        snap_col.prop(settings, "snap_distance")
         box.operator("shapeflow.draw_rectangle", text="Draw Rectangle", icon='MESH_PLANE')
         box = layout.box()
         box.label(text="Direct Modeling")
