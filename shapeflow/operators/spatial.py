@@ -4,7 +4,13 @@ from bpy_extras import view3d_utils
 
 from ..utils.geometry import snap_scalar, typed_length_to_blender_units
 from ..utils.picking import pick_mesh_face, ray_plane, viewport_mouse
-from ..utils.snapping import collect_scene_snap_points, nearest_screen_candidate
+from ..utils.snapping import (
+    collect_object_snap_geometry,
+    collect_scene_snap_geometry,
+    collect_scene_snap_points,
+    nearest_screen_candidate,
+    nearest_screen_geometry,
+)
 from ..utils.viewport import ViewportPreviewMixin, draw_polyline
 
 
@@ -121,6 +127,7 @@ class SHAPEFLOW_OT_move_object(_SpatialToolMixin, bpy.types.Operator):
     def invoke(self, context, _event):
         context.window_manager.shapeflow_active_tool = 'MOVE'
         self._dragging = False; self._object = None; self._copied = False
+        self._anchor = None; self._snap_target = None; self._snap_kind = None
         self.add_preview(context); context.window_manager.modal_handler_add(self)
         context.workspace.status_text_set("ShapeFlow Move: drag an object • Copy duplicates first • Esc stops")
         return {'RUNNING_MODAL'}
@@ -145,14 +152,36 @@ class SHAPEFLOW_OT_move_object(_SpatialToolMixin, bpy.types.Operator):
                 self._copied = True
             else:
                 self._copied = False
-            self._object = obj; self._start_location = obj.location.copy(); self._anchor = hit.copy(); self._mouse_start = mouse
-            self._candidates = collect_scene_snap_points(context, exclude=obj); self._dragging = True
+            source_candidates, source_edges = collect_object_snap_geometry(obj)
+            source_snap = nearest_screen_geometry(
+                context, region, mouse, source_candidates, source_edges,
+                context.scene.shapeflow.snap_distance,
+            )
+            self._object = obj
+            self._start_location = obj.location.copy()
+            self._anchor = source_snap.point.copy() if source_snap else hit.copy()
+            self._anchor_kind = source_snap.kind if source_snap else "FACE_POINT"
+            self._mouse_start = mouse
+            self._candidates, self._edges = collect_scene_snap_geometry(context, exclude=obj)
+            self._snap_target = None; self._snap_kind = None; self._dragging = True
+            context.workspace.status_text_set(f"ShapeFlow Move: grabbed {self._anchor_kind.lower()} • drag near target geometry")
         elif event.type == 'MOUSEMOVE' and self._dragging:
             settings = context.scene.shapeflow
-            target = nearest_screen_candidate(context, region, mouse, self._candidates, settings.snap_distance)
+            target = nearest_screen_geometry(
+                context, region, mouse, self._candidates, self._edges, settings.snap_distance
+            )
             if target and settings.snap_enabled and settings.geometry_snap and not event.shift:
                 offset = target.point - self._anchor
+                changed_target = self._snap_target is None or (self._snap_target - target.point).length > 1.0e-7
+                self._snap_target = target.point.copy(); self._snap_kind = target.kind
+                if changed_target:
+                    screen = view3d_utils.location_3d_to_region_2d(
+                        region, context.space_data.region_3d, target.point
+                    )
+                    if screen is not None:
+                        context.window.cursor_warp(int(region.x + screen.x), int(region.y + screen.y))
             else:
+                self._snap_target = None; self._snap_kind = None
                 constraint = settings.move_constraint
                 if len(constraint) == 1:
                     offset, _axis = _axis_drag(context, region, self._anchor, self._mouse_start, mouse, constraint, event.shift)
@@ -168,8 +197,13 @@ class SHAPEFLOW_OT_move_object(_SpatialToolMixin, bpy.types.Operator):
                         offset = Vector(tuple(snap_scalar(value, spacing) for value in offset))
             self._object.location = self._start_location + offset
             context.view_layer.update()
+            if self._snap_kind:
+                context.workspace.status_text_set(
+                    f"ShapeFlow Move: {self._anchor_kind.lower()} → {self._snap_kind.lower()} • release to confirm"
+                )
         elif event.type == 'LEFTMOUSE' and event.value == 'RELEASE' and self._dragging:
-            self._dragging = False; bpy.ops.ed.undo_push(message="ShapeFlow Move Object")
+            self._dragging = False; self._snap_target = None; bpy.ops.ed.undo_push(message="ShapeFlow Move Object")
+            context.workspace.status_text_set("ShapeFlow Move: drag another object • Esc stops")
         return {'RUNNING_MODAL'}
 
     def _cancel_drag(self):
@@ -178,10 +212,19 @@ class SHAPEFLOW_OT_move_object(_SpatialToolMixin, bpy.types.Operator):
                 bpy.data.objects.remove(self._object, do_unlink=True)
             else:
                 self._object.location = self._start_location
-        self._dragging = False; self._object = None
+        self._dragging = False; self._object = None; self._anchor = None; self._snap_target = None
 
-    def draw_preview(self, _context):
-        return
+    def draw_preview(self, context):
+        span = max(0.002, context.space_data.region_3d.view_distance * 0.012)
+        if self._anchor is not None and self._object is not None:
+            moved_anchor = self._anchor + (self._object.location - self._start_location)
+            draw_polyline([moved_anchor - AXES['X'] * span, moved_anchor + AXES['X'] * span], color=(1, .8, .1, 1))
+            draw_polyline([moved_anchor - AXES['Y'] * span, moved_anchor + AXES['Y'] * span], color=(1, .8, .1, 1))
+            draw_polyline([moved_anchor - AXES['Z'] * span, moved_anchor + AXES['Z'] * span], color=(1, .8, .1, 1))
+        if self._snap_target is not None:
+            draw_polyline([self._snap_target - AXES['X'] * span, self._snap_target + AXES['X'] * span], color=(.1, 1, .35, 1))
+            draw_polyline([self._snap_target - AXES['Y'] * span, self._snap_target + AXES['Y'] * span], color=(.1, 1, .35, 1))
+            draw_polyline([self._snap_target - AXES['Z'] * span, self._snap_target + AXES['Z'] * span], color=(.1, 1, .35, 1))
 
     def _finish(self, context):
         self.remove_preview(context); context.workspace.status_text_set(None)

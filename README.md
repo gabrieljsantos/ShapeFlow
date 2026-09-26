@@ -1,6 +1,8 @@
 # ShapeFlow
 
-ShapeFlow 0.7.0 is a Blender 5.2 add-on for direct modelling with persistent creation and transformation modes over native Blender meshes. Face orientation is independent from the movable 3D creation origin.
+ShapeFlow 0.7.1 is a Blender 5.2 add-on for direct modelling with persistent creation and transformation modes over native Blender meshes. Face orientation is independent from movement and from the movable 3D creation origin.
+
+Move snapping is screen-space driven: vertices, edge midpoints, arbitrary positions along edges, and face centers become magnetic when their projection is within the configured **Snap distance** in pixels. Their world-space distance does not prevent alignment when they are visually close in the current view.
 
 ## Install and activate
 

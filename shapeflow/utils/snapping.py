@@ -73,6 +73,37 @@ def collect_scene_snap_points(context, exclude=None):
     return points
 
 
+def collect_object_snap_geometry(obj):
+    """Return full-3D snap points and edges for one mesh object."""
+    if obj is None or obj.type != 'MESH':
+        return [], []
+    matrix = obj.matrix_world
+    vertices = [matrix @ vertex.co for vertex in obj.data.vertices]
+    candidates = [SnapCandidate(point.copy(), "VERTEX") for point in vertices]
+    edges = []
+    for edge in obj.data.edges:
+        a = vertices[edge.vertices[0]].copy()
+        b = vertices[edge.vertices[1]].copy()
+        edges.append((a, b))
+        candidates.append(SnapCandidate((a + b) * 0.5, "MIDPOINT"))
+    candidates.extend(
+        SnapCandidate(matrix @ polygon.center, "FACE_CENTER") for polygon in obj.data.polygons
+    )
+    return candidates, edges
+
+
+def collect_scene_snap_geometry(context, exclude=None):
+    candidates = []
+    edges = []
+    for obj in context.visible_objects:
+        if obj == exclude or obj.type != 'MESH' or obj.hide_get():
+            continue
+        obj_candidates, obj_edges = collect_object_snap_geometry(obj)
+        candidates.extend(obj_candidates)
+        edges.extend(obj_edges)
+    return candidates, edges
+
+
 def nearest_screen_candidate(context, region, mouse, candidates, threshold):
     rv3d = context.space_data.region_3d
     best = None
@@ -83,6 +114,33 @@ def nearest_screen_candidate(context, region, mouse, candidates, threshold):
         distance = (screen - Vector(mouse)).length
         if distance <= threshold and (best is None or distance < best[0]):
             best = (distance, candidate)
+    return best[1] if best else None
+
+
+def nearest_screen_geometry(context, region, mouse, candidates, edges, threshold):
+    """Find a point, or any position along an edge, near the screen cursor."""
+    rv3d = context.space_data.region_3d
+    mouse = Vector(mouse)
+    best = None
+    for candidate in candidates:
+        screen = view3d_utils.location_3d_to_region_2d(region, rv3d, candidate.point)
+        if screen is None:
+            continue
+        distance = (screen - mouse).length
+        if distance <= threshold and (best is None or distance < best[0]):
+            best = (distance, candidate)
+    for a, b in edges:
+        screen_a = view3d_utils.location_3d_to_region_2d(region, rv3d, a)
+        screen_b = view3d_utils.location_3d_to_region_2d(region, rv3d, b)
+        if screen_a is None or screen_b is None:
+            continue
+        segment = screen_b - screen_a
+        factor = 0.0 if segment.length_squared == 0.0 else (mouse - screen_a).dot(segment) / segment.length_squared
+        factor = max(0.0, min(1.0, factor))
+        screen_point = screen_a.lerp(screen_b, factor)
+        distance = (screen_point - mouse).length
+        if distance <= threshold and (best is None or distance < best[0]):
+            best = (distance, SnapCandidate(a.lerp(b, factor), "EDGE"))
     return best[1] if best else None
 
 

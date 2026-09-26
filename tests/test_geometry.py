@@ -107,6 +107,15 @@ class ShapeFlowGeometryTests(unittest.TestCase):
         points = rectangle_corners(Vector((0, 0, 0.007)), Vector((0.01, 0.02, 0.007)), 'XY')
         self.assertTrue(all(abs(point.z - 0.007) < 1.0e-9 for point in points))
 
+    def test_cube_exposes_full_3d_move_snap_geometry(self):
+        from shapeflow.utils.snapping import collect_object_snap_geometry
+        bpy.ops.mesh.primitive_cube_add(size=2.0)
+        candidates, edges = collect_object_snap_geometry(bpy.context.object)
+        self.assertEqual(len(edges), 12)
+        self.assertEqual(sum(candidate.kind == 'VERTEX' for candidate in candidates), 8)
+        self.assertEqual(sum(candidate.kind == 'MIDPOINT' for candidate in candidates), 12)
+        self.assertEqual(sum(candidate.kind == 'FACE_CENTER' for candidate in candidates), 6)
+
     def test_coordinate_pair(self):
         self.assertEqual(parse_coordinate_pair("10.37;12"), (10.37, 12.0))
         self.assertEqual(parse_coordinate_pair("10,37;12"), (10.37, 12.0))
