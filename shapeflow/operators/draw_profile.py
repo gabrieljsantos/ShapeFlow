@@ -56,7 +56,8 @@ class SHAPEFLOW_OT_draw_rectangle(ViewportPreviewMixin, bpy.types.Operator):
         self._snap_result = None
         self._numeric = ""
         self._candidates, self._edges = collect_plane_geometry(
-            context, context.scene.shapeflow.drawing_plane
+            context, context.scene.shapeflow.drawing_plane,
+            context.scene.shapeflow.drawing_origin,
         )
 
     def _set_status(self, context):
@@ -73,7 +74,7 @@ class SHAPEFLOW_OT_draw_rectangle(ViewportPreviewMixin, bpy.types.Operator):
             return None
         plane = context.scene.shapeflow.drawing_plane
         _, _, normal = plane_axes(plane)
-        raw = ray_plane(context, viewport[1], Vector((0, 0, 0)), normal)
+        raw = ray_plane(context, viewport[1], Vector(context.scene.shapeflow.drawing_origin), normal)
         if raw is None:
             return None
         self._snap_result = snap_draw_point(

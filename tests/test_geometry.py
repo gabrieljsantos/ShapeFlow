@@ -101,6 +101,12 @@ class ShapeFlowGeometryTests(unittest.TestCase):
         self.assertEqual(len(points), 5)
         self.assertTrue(all(abs(point.length - 1.0) < 1.0e-6 for point in points))
 
+    def test_profile_can_be_created_on_offset_plane(self):
+        from mathutils import Vector
+        from shapeflow.utils.geometry import rectangle_corners
+        points = rectangle_corners(Vector((0, 0, 0.007)), Vector((0.01, 0.02, 0.007)), 'XY')
+        self.assertTrue(all(abs(point.z - 0.007) < 1.0e-9 for point in points))
+
     def test_coordinate_pair(self):
         self.assertEqual(parse_coordinate_pair("10.37;12"), (10.37, 12.0))
         self.assertEqual(parse_coordinate_pair("10,37;12"), (10.37, 12.0))

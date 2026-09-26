@@ -3,6 +3,7 @@ from .draw_polygon import SHAPEFLOW_OT_draw_polygon, SHAPEFLOW_OT_polygon_settin
 from .extrude_face import SHAPEFLOW_OT_extrude_face
 from .workspace import SHAPEFLOW_OT_workspace
 from .mode import SHAPEFLOW_OT_activate_tool, SHAPEFLOW_OT_toggle_mode, SHAPEFLOW_OT_tool_placeholder
+from .spatial import SHAPEFLOW_OT_move_object, SHAPEFLOW_OT_position_origin
 
 CLASSES = (
     SHAPEFLOW_OT_draw_rectangle,
@@ -13,4 +14,6 @@ CLASSES = (
     SHAPEFLOW_OT_toggle_mode,
     SHAPEFLOW_OT_activate_tool,
     SHAPEFLOW_OT_tool_placeholder,
+    SHAPEFLOW_OT_position_origin,
+    SHAPEFLOW_OT_move_object,
 )

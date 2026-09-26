@@ -28,9 +28,10 @@ class SnapResult:
     guide_v: Vector | None = None
 
 
-def collect_plane_geometry(context, plane, tolerance=1.0e-5):
+def collect_plane_geometry(context, plane, plane_point=None, tolerance=1.0e-5):
     """Collect stable snap locations and coplanar edges from visible mesh objects."""
     _u, _v, normal = plane_axes(plane)
+    plane_point = Vector((0.0, 0.0, 0.0)) if plane_point is None else Vector(plane_point)
     candidates = []
     edges = []
     for obj in context.visible_objects:
@@ -39,20 +40,50 @@ def collect_plane_geometry(context, plane, tolerance=1.0e-5):
         matrix = obj.matrix_world
         world_vertices = [matrix @ vertex.co for vertex in obj.data.vertices]
         for point in world_vertices:
-            if abs(point.dot(normal)) <= tolerance:
+            if abs((point - plane_point).dot(normal)) <= tolerance:
                 candidates.append(SnapCandidate(point.copy(), "VERTEX"))
         for edge in obj.data.edges:
             a = world_vertices[edge.vertices[0]]
             b = world_vertices[edge.vertices[1]]
-            if abs(a.dot(normal)) <= tolerance and abs(b.dot(normal)) <= tolerance:
+            if abs((a - plane_point).dot(normal)) <= tolerance and abs((b - plane_point).dot(normal)) <= tolerance:
                 midpoint = (a + b) * 0.5
                 candidates.append(SnapCandidate(midpoint, "MIDPOINT"))
                 edges.append((a.copy(), b.copy()))
         for polygon in obj.data.polygons:
             center = matrix @ polygon.center
-            if abs(center.dot(normal)) <= tolerance:
+            if abs((center - plane_point).dot(normal)) <= tolerance:
                 candidates.append(SnapCandidate(center, "FACE_CENTER"))
     return candidates, edges
+
+
+def collect_scene_snap_points(context, exclude=None):
+    """Collect vertices, edge midpoints, and face centers in full 3D space."""
+    points = []
+    for obj in context.visible_objects:
+        if obj == exclude or obj.type != 'MESH' or obj.hide_get():
+            continue
+        matrix = obj.matrix_world
+        vertices = [matrix @ vertex.co for vertex in obj.data.vertices]
+        points.extend(SnapCandidate(point.copy(), "VERTEX") for point in vertices)
+        for edge in obj.data.edges:
+            points.append(SnapCandidate(
+                (vertices[edge.vertices[0]] + vertices[edge.vertices[1]]) * 0.5, "MIDPOINT"
+            ))
+        points.extend(SnapCandidate(matrix @ polygon.center, "FACE_CENTER") for polygon in obj.data.polygons)
+    return points
+
+
+def nearest_screen_candidate(context, region, mouse, candidates, threshold):
+    rv3d = context.space_data.region_3d
+    best = None
+    for candidate in candidates:
+        screen = view3d_utils.location_3d_to_region_2d(region, rv3d, candidate.point)
+        if screen is None:
+            continue
+        distance = (screen - Vector(mouse)).length
+        if distance <= threshold and (best is None or distance < best[0]):
+            best = (distance, candidate)
+    return best[1] if best else None
 
 
 def _screen_distance(region, rv3d, a, b):
@@ -71,12 +102,14 @@ def snap_draw_point(context, region, raw_point, plane, settings, candidates, edg
         settings.grid_spacing, settings.length_unit, context.scene.unit_settings.scale_length
     )
     raw_u, raw_v = plane_coordinates(raw_point, plane)
+    _axis_u, _axis_v, normal = plane_axes(plane)
+    plane_offset = normal * raw_point.dot(normal)
     u, v = raw_u, raw_v
     kind = "FREE"
     if settings.grid_snap:
         u, v = snap_scalar(u, unit_spacing), snap_scalar(v, unit_spacing)
         kind = "GRID"
-    point = point_from_plane_coordinates(u, v, plane)
+    point = point_from_plane_coordinates(u, v, plane) + plane_offset
 
     if not settings.geometry_snap:
         return SnapResult(point, kind)
@@ -102,8 +135,8 @@ def snap_draw_point(context, region, raw_point, plane, settings, candidates, edg
     best_u = best_v = None
     for candidate in candidates:
         candidate_u, candidate_v = plane_coordinates(candidate.point, plane)
-        aligned_u = point_from_plane_coordinates(candidate_u, raw_v, plane)
-        aligned_v = point_from_plane_coordinates(raw_u, candidate_v, plane)
+        aligned_u = point_from_plane_coordinates(candidate_u, raw_v, plane) + plane_offset
+        aligned_v = point_from_plane_coordinates(raw_u, candidate_v, plane) + plane_offset
         distance_u = _screen_distance(region, rv3d, raw_point, aligned_u)
         distance_v = _screen_distance(region, rv3d, raw_point, aligned_v)
         if distance_u <= threshold and (best_u is None or distance_u < best_u[0]):
@@ -114,4 +147,4 @@ def snap_draw_point(context, region, raw_point, plane, settings, candidates, edg
         u, guide_u, kind = best_u[1], best_u[2].copy(), "ALIGNMENT"
     if best_v:
         v, guide_v, kind = best_v[1], best_v[2].copy(), "ALIGNMENT"
-    return SnapResult(point_from_plane_coordinates(u, v, plane), kind, guide_u, guide_v)
+    return SnapResult(point_from_plane_coordinates(u, v, plane) + plane_offset, kind, guide_u, guide_v)

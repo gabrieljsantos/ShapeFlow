@@ -1,0 +1,187 @@
+import bpy
+from mathutils import Vector
+from bpy_extras import view3d_utils
+
+from ..utils.geometry import snap_scalar, typed_length_to_blender_units
+from ..utils.picking import pick_mesh_face, ray_plane, viewport_mouse
+from ..utils.snapping import collect_scene_snap_points, nearest_screen_candidate
+from ..utils.viewport import ViewportPreviewMixin, draw_polyline
+
+
+AXES = {'X': Vector((1, 0, 0)), 'Y': Vector((0, 1, 0)), 'Z': Vector((0, 0, 1))}
+
+
+def _step(context):
+    settings = context.scene.shapeflow
+    return typed_length_to_blender_units(
+        settings.grid_spacing, settings.length_unit, context.scene.unit_settings.scale_length
+    )
+
+
+def _projected_axis(context, region, origin, axis):
+    rv3d = context.space_data.region_3d
+    a = view3d_utils.location_3d_to_region_2d(region, rv3d, origin)
+    b = view3d_utils.location_3d_to_region_2d(region, rv3d, origin + axis)
+    if a is None or b is None or (b - a).length < 1.0e-5:
+        return None
+    direction = b - a
+    direction.normalize()
+    return direction
+
+
+def _axis_drag(context, region, origin, mouse_start, mouse_now, allowed='XYZ', bypass=False):
+    delta = Vector(mouse_now) - Vector(mouse_start)
+    candidates = []
+    for name, axis in AXES.items():
+        if name not in allowed:
+            continue
+        screen_axis = _projected_axis(context, region, origin, axis)
+        if screen_axis is not None:
+            candidates.append((abs(delta.dot(screen_axis)), delta.dot(screen_axis), axis))
+    if not candidates:
+        return Vector(), None
+    _score, pixels, axis = max(candidates, key=lambda item: item[0])
+    distance = pixels * 0.01
+    settings = context.scene.shapeflow
+    if settings.snap_enabled and settings.grid_snap and not bypass:
+        distance = snap_scalar(distance, _step(context))
+    return axis * distance, axis
+
+
+class _SpatialToolMixin(ViewportPreviewMixin):
+    def _outside_viewport(self, context, event):
+        viewport = viewport_mouse(context, event)
+        if not viewport:
+            return True
+        region, mouse = viewport
+        return not (0 <= mouse[0] <= region.width and 0 <= mouse[1] <= region.height)
+
+
+class SHAPEFLOW_OT_position_origin(_SpatialToolMixin, bpy.types.Operator):
+    bl_idname = "shapeflow.position_origin"
+    bl_label = "Position Creation Origin"
+    bl_description = "G: drag the 3D ShapeFlow origin along a projected world axis; snap to existing geometry"
+    bl_options = {'REGISTER', 'BLOCKING'}
+
+    def invoke(self, context, _event):
+        context.window_manager.shapeflow_active_tool = 'ORIGIN'
+        self._dragging = False
+        self._origin = Vector(context.scene.shapeflow.drawing_origin)
+        self._current = self._origin.copy()
+        self._axis = None
+        self._candidates = collect_scene_snap_points(context)
+        self.add_preview(context)
+        context.window_manager.modal_handler_add(self)
+        context.workspace.status_text_set("ShapeFlow Origin: drag in an axis direction • geometry snaps in 3D • Esc stops")
+        return {'RUNNING_MODAL'}
+
+    def modal(self, context, event):
+        wm = context.window_manager
+        if not wm.shapeflow_mode or wm.shapeflow_active_tool != 'ORIGIN':
+            self._finish(context); return {'CANCELLED'}
+        if event.type == 'ESC':
+            wm.shapeflow_active_tool = 'NONE'; self._finish(context); return {'CANCELLED'}
+        if self._outside_viewport(context, event):
+            return {'PASS_THROUGH'}
+        region, mouse = viewport_mouse(context, event)
+        if event.type == 'LEFTMOUSE' and event.value == 'PRESS':
+            self._dragging = True; self._mouse_start = mouse; self._origin = Vector(context.scene.shapeflow.drawing_origin)
+        elif event.type == 'MOUSEMOVE' and self._dragging:
+            settings = context.scene.shapeflow
+            snap = nearest_screen_candidate(context, region, mouse, self._candidates, settings.snap_distance)
+            if snap and settings.snap_enabled and settings.geometry_snap and not event.shift:
+                self._current, self._axis = snap.point.copy(), None
+            else:
+                offset, self._axis = _axis_drag(context, region, self._origin, self._mouse_start, mouse, 'XYZ', event.shift)
+                self._current = self._origin + offset
+            settings.drawing_origin = self._current
+            context.area.tag_redraw()
+        elif event.type == 'LEFTMOUSE' and event.value == 'RELEASE' and self._dragging:
+            self._dragging = False
+            bpy.ops.ed.undo_push(message="ShapeFlow Position Origin")
+        return {'RUNNING_MODAL'}
+
+    def draw_preview(self, context):
+        span = max(0.1, context.space_data.region_3d.view_distance * 0.2)
+        colors = {'X': (1, .15, .15, .9), 'Y': (.15, 1, .15, .9), 'Z': (.2, .45, 1, .9)}
+        for name, axis in AXES.items():
+            color = (1, .8, .15, 1) if self._axis == axis else colors[name]
+            draw_polyline([self._current - axis * span, self._current + axis * span], color=color)
+
+    def _finish(self, context):
+        self.remove_preview(context); context.workspace.status_text_set(None)
+
+
+class SHAPEFLOW_OT_move_object(_SpatialToolMixin, bpy.types.Operator):
+    bl_idname = "shapeflow.move_object"
+    bl_label = "Move Object"
+    bl_description = "M: drag a whole object; use axis/plane constraints, steps, and geometry snapping"
+    bl_options = {'REGISTER', 'BLOCKING'}
+
+    def invoke(self, context, _event):
+        context.window_manager.shapeflow_active_tool = 'MOVE'
+        self._dragging = False; self._object = None; self._copied = False
+        self.add_preview(context); context.window_manager.modal_handler_add(self)
+        context.workspace.status_text_set("ShapeFlow Move: drag an object • Copy duplicates first • Esc stops")
+        return {'RUNNING_MODAL'}
+
+    def modal(self, context, event):
+        wm = context.window_manager
+        if not wm.shapeflow_mode or wm.shapeflow_active_tool != 'MOVE':
+            self._cancel_drag(); self._finish(context); return {'CANCELLED'}
+        if event.type == 'ESC':
+            self._cancel_drag(); wm.shapeflow_active_tool = 'NONE'; self._finish(context); return {'CANCELLED'}
+        if event.type == 'RIGHTMOUSE':
+            self._cancel_drag(); return {'RUNNING_MODAL'}
+        if self._outside_viewport(context, event):
+            return {'PASS_THROUGH'}
+        region, mouse = viewport_mouse(context, event)
+        if event.type == 'LEFTMOUSE' and event.value == 'PRESS' and not self._dragging:
+            picked = pick_mesh_face(context, mouse)
+            if not picked: return {'RUNNING_MODAL'}
+            obj, _face, hit, _normal = picked
+            if context.scene.shapeflow.copy_mode:
+                duplicate = obj.copy(); duplicate.data = obj.data.copy(); context.collection.objects.link(duplicate); obj = duplicate
+                self._copied = True
+            else:
+                self._copied = False
+            self._object = obj; self._start_location = obj.location.copy(); self._anchor = hit.copy(); self._mouse_start = mouse
+            self._candidates = collect_scene_snap_points(context, exclude=obj); self._dragging = True
+        elif event.type == 'MOUSEMOVE' and self._dragging:
+            settings = context.scene.shapeflow
+            target = nearest_screen_candidate(context, region, mouse, self._candidates, settings.snap_distance)
+            if target and settings.snap_enabled and settings.geometry_snap and not event.shift:
+                offset = target.point - self._anchor
+            else:
+                constraint = settings.move_constraint
+                if len(constraint) == 1:
+                    offset, _axis = _axis_drag(context, region, self._anchor, self._mouse_start, mouse, constraint, event.shift)
+                else:
+                    normal = {'XY': AXES['Z'], 'XZ': AXES['Y'], 'YZ': AXES['X']}.get(constraint)
+                    if normal is None:
+                        normal = context.space_data.region_3d.view_rotation @ Vector((0, 0, 1))
+                    start = ray_plane(context, self._mouse_start, self._anchor, normal)
+                    now = ray_plane(context, mouse, self._anchor, normal)
+                    offset = (now - start) if start is not None and now is not None else Vector()
+                    if settings.snap_enabled and settings.grid_snap and not event.shift:
+                        spacing = _step(context)
+                        offset = Vector(tuple(snap_scalar(value, spacing) for value in offset))
+            self._object.location = self._start_location + offset
+            context.view_layer.update()
+        elif event.type == 'LEFTMOUSE' and event.value == 'RELEASE' and self._dragging:
+            self._dragging = False; bpy.ops.ed.undo_push(message="ShapeFlow Move Object")
+        return {'RUNNING_MODAL'}
+
+    def _cancel_drag(self):
+        if self._dragging and self._object:
+            if self._copied:
+                bpy.data.objects.remove(self._object, do_unlink=True)
+            else:
+                self._object.location = self._start_location
+        self._dragging = False; self._object = None
+
+    def draw_preview(self, _context):
+        return
+
+    def _finish(self, context):
+        self.remove_preview(context); context.workspace.status_text_set(None)

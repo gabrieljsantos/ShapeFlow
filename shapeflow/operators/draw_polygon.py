@@ -52,7 +52,9 @@ class SHAPEFLOW_OT_draw_polygon(ViewportPreviewMixin, bpy.types.Operator):
         self._start = None
         self._current = None
         self._snap_result = None
-        self._candidates, self._edges = collect_plane_geometry(context, context.scene.shapeflow.drawing_plane)
+        self._candidates, self._edges = collect_plane_geometry(
+            context, context.scene.shapeflow.drawing_plane, context.scene.shapeflow.drawing_origin
+        )
 
     def _set_status(self, context):
         sides = context.scene.shapeflow.polygon_sides
@@ -67,7 +69,7 @@ class SHAPEFLOW_OT_draw_polygon(ViewportPreviewMixin, bpy.types.Operator):
             return None
         settings = context.scene.shapeflow
         _u, _v, normal = plane_axes(settings.drawing_plane)
-        raw = ray_plane(context, viewport[1], Vector((0, 0, 0)), normal)
+        raw = ray_plane(context, viewport[1], Vector(settings.drawing_origin), normal)
         if raw is None:
             return None
         self._snap_result = snap_draw_point(

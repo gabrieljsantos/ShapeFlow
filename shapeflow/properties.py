@@ -1,6 +1,6 @@
 import bpy
 from bpy.app.handlers import persistent
-from bpy.props import BoolProperty, EnumProperty, FloatProperty, IntProperty, PointerProperty, StringProperty
+from bpy.props import BoolProperty, EnumProperty, FloatProperty, FloatVectorProperty, IntProperty, PointerProperty, StringProperty
 
 
 def _sync_scene_units(self, context):
@@ -8,7 +8,38 @@ def _sync_scene_units(self, context):
     context.scene.unit_settings.length_unit = self.length_unit
 
 
+def _toggle_native_grid(self, context):
+    if context.area and context.area.type == 'VIEW_3D':
+        context.space_data.overlay.show_floor = self.show_native_grid
+        context.space_data.overlay.show_axis_x = self.show_native_grid
+        context.space_data.overlay.show_axis_y = self.show_native_grid
+        context.space_data.overlay.show_axis_z = self.show_native_grid
+
+
 class ShapeFlowSettings(bpy.types.PropertyGroup):
+    drawing_origin: FloatVectorProperty(
+        name="Creation origin",
+        description="World-space origin used by ShapeFlow drawing planes",
+        size=3,
+        subtype='TRANSLATION',
+        unit='LENGTH',
+        default=(0.0, 0.0, 0.0),
+    )
+    show_native_grid: BoolProperty(
+        name="Show Blender grid",
+        description="Show Blender's native grid and axes while positioning",
+        default=True,
+        update=_toggle_native_grid,
+    )
+    move_constraint: EnumProperty(
+        name="Move constraint",
+        items=(
+            ('X', "X", "Move only on X"), ('Y', "Y", "Move only on Y"), ('Z', "Z", "Move only on Z"),
+            ('XY', "XY", "Move on XY"), ('XZ', "XZ", "Move on XZ"), ('YZ', "YZ", "Move on YZ"),
+            ('XYZ', "XYZ", "Move freely using view depth"),
+        ),
+        default='XYZ',
+    )
     copy_mode: BoolProperty(
         name="Copy",
         description="Duplicate before transforming; future Move and Rotate tools will use the same setting",
@@ -127,6 +158,8 @@ def register_properties():
             ('RECTANGLE', "Rectangle", "Create rectangles continuously"),
             ('POLYGON', "Polygon", "Create regular polygons continuously"),
             ('EXTRUDE', "Extrude", "Push or pull faces continuously"),
+            ('ORIGIN', "Origin", "Position the ShapeFlow creation origin"),
+            ('MOVE', "Move", "Move whole objects with snapping"),
         ),
         default='NONE',
         options={'HIDDEN', 'SKIP_SAVE'},

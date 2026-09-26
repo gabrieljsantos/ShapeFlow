@@ -1,6 +1,6 @@
 # ShapeFlow
 
-ShapeFlow 0.6.0 is a Blender 5.2 add-on for direct modelling with persistent Rectangle, Polygon, and Extrude modes over native Blender meshes. The result remains editable with every normal Blender mesh tool and modifier.
+ShapeFlow 0.7.0 is a Blender 5.2 add-on for direct modelling with persistent creation and transformation modes over native Blender meshes. Face orientation is independent from the movable 3D creation origin.
 
 ## Install and activate
 

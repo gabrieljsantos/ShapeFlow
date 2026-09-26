@@ -15,7 +15,7 @@ class SHAPEFLOW_PT_main(bpy.types.Panel):
         mode_enabled = window_manager.shapeflow_mode
         active = window_manager.shapeflow_active_tool
 
-        layout.label(text="ShapeFlow 0.6.0")
+        layout.label(text="ShapeFlow 0.7.0")
         layout.operator("shapeflow.open_workspace", icon='WORKSPACE')
         if mode_enabled:
             row = layout.row()
@@ -30,8 +30,17 @@ class SHAPEFLOW_PT_main(bpy.types.Panel):
         tools.enabled = mode_enabled
 
         plane = tools.box()
-        plane.label(text="Plane")
-        plane.prop(settings, "drawing_plane", expand=True)
+        plane.label(text="Face orientation")
+        row = plane.row(align=True)
+        row.prop(settings, "drawing_plane", expand=True)
+
+        space = tools.box()
+        space.label(text="3D creation origin")
+        space.prop(settings, "drawing_origin", text="")
+        row = space.row(align=True)
+        operator = row.operator("shapeflow.activate_tool", text="G  Position", depress=active == 'ORIGIN')
+        operator.tool = 'ORIGIN'
+        row.prop(settings, "show_native_grid", text="Grid", toggle=True, icon='GRID')
 
         options = tools.box()
         options.label(text="Options")
@@ -54,10 +63,19 @@ class SHAPEFLOW_PT_main(bpy.types.Panel):
         grid = transform.grid_flow(row_major=True, columns=4, even_columns=True, even_rows=True, align=True)
         operator = grid.operator("shapeflow.activate_tool", text="E", depress=active == 'EXTRUDE')
         operator.tool = 'EXTRUDE'
-        operator = grid.operator("shapeflow.tool_placeholder", text="M")
-        operator.tool_name = "Move"
+        operator = grid.operator("shapeflow.activate_tool", text="M", depress=active == 'MOVE')
+        operator.tool = 'MOVE'
         operator = grid.operator("shapeflow.tool_placeholder", text="O")
         operator.tool_name = "Rotate"
+
+        constraints = tools.box()
+        constraints.label(text="Move constraint")
+        row = constraints.row(align=True)
+        for value in ('X', 'Y', 'Z'):
+            row.prop_enum(settings, "move_constraint", value=value)
+        row = constraints.row(align=True)
+        for value in ('XY', 'XZ', 'YZ', 'XYZ'):
+            row.prop_enum(settings, "move_constraint", value=value)
 
         header, body = tools.panel("SHAPEFLOW_PT_alignment_settings", default_closed=True)
         header.label(text="Alignment settings")
@@ -81,5 +99,9 @@ class SHAPEFLOW_PT_main(bpy.types.Panel):
             tools.label(text=f"Polygon ({settings.polygon_sides}) active — Esc to stop", icon='RADIOBUT_ON')
         elif active == 'EXTRUDE':
             tools.label(text="Extrude active — Esc to stop", icon='RADIOBUT_ON')
+        elif active == 'ORIGIN':
+            tools.label(text="3D origin active — Esc to stop", icon='RADIOBUT_ON')
+        elif active == 'MOVE':
+            tools.label(text="Move active — Esc to stop", icon='RADIOBUT_ON')
         else:
             tools.label(text="Choose a tool", icon='INFO')
