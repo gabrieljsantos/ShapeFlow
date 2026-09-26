@@ -20,7 +20,7 @@ class SHAPEFLOW_OT_draw_rectangle(ViewportPreviewMixin, bpy.types.Operator):
     bl_idname = "shapeflow.draw_rectangle"
     bl_label = "Draw Rectangle"
     bl_description = "Draw a rectangular native mesh face"
-    bl_options = {'REGISTER', 'UNDO', 'BLOCKING'}
+    bl_options = {'REGISTER', 'BLOCKING'}
 
     _start = None
     _current = None
@@ -35,6 +35,14 @@ class SHAPEFLOW_OT_draw_rectangle(ViewportPreviewMixin, bpy.types.Operator):
         )
 
     def invoke(self, context, event):
+        context.window_manager.shapeflow_active_tool = 'RECTANGLE'
+        self._reset(context)
+        self.add_preview(context)
+        context.window_manager.modal_handler_add(self)
+        self._set_status(context)
+        return {'RUNNING_MODAL'}
+
+    def _reset(self, context):
         self._start = None
         self._current = None
         self._snap_result = None
@@ -42,10 +50,6 @@ class SHAPEFLOW_OT_draw_rectangle(ViewportPreviewMixin, bpy.types.Operator):
         self._candidates, self._edges = collect_plane_geometry(
             context, context.scene.shapeflow.drawing_plane
         )
-        self.add_preview(context)
-        context.window_manager.modal_handler_add(self)
-        self._set_status(context)
-        return {'RUNNING_MODAL'}
 
     def _set_status(self, context):
         plane = context.scene.shapeflow.drawing_plane
@@ -81,9 +85,21 @@ class SHAPEFLOW_OT_draw_rectangle(ViewportPreviewMixin, bpy.types.Operator):
         return self._start + axis_u * first + axis_v * second
 
     def modal(self, context, event):
-        if event.type in {'ESC', 'RIGHTMOUSE'}:
+        if not context.window_manager.shapeflow_mode or context.window_manager.shapeflow_active_tool != 'RECTANGLE':
             self._finish(context)
             return {'CANCELLED'}
+        if event.type == 'ESC':
+            context.window_manager.shapeflow_active_tool = 'NONE'
+            self._finish(context)
+            return {'CANCELLED'}
+        if event.type == 'RIGHTMOUSE':
+            self._reset(context)
+            self._set_status(context)
+            context.area.tag_redraw()
+            return {'RUNNING_MODAL'}
+        viewport = viewport_mouse(context, event)
+        if viewport and not (0 <= viewport[1][0] <= viewport[0].width and 0 <= viewport[1][1] <= viewport[0].height):
+            return {'PASS_THROUGH'}
         if event.type == 'MOUSEMOVE':
             self._current = self._mouse_point(context, event)
             context.area.tag_redraw()
@@ -112,8 +128,10 @@ class SHAPEFLOW_OT_draw_rectangle(ViewportPreviewMixin, bpy.types.Operator):
             except ValueError as error:
                 self.report({'WARNING'}, f"ShapeFlow: {error}")
                 return {'RUNNING_MODAL'}
-            self._finish(context)
-            return {'FINISHED'}
+            bpy.ops.ed.undo_push(message="ShapeFlow Rectangle")
+            self._reset(context)
+            self._set_status(context)
+            return {'RUNNING_MODAL'}
         if event.type == 'LEFTMOUSE' and event.value == 'PRESS':
             point = self._mouse_point(context, event)
             if point is None:
@@ -130,8 +148,10 @@ class SHAPEFLOW_OT_draw_rectangle(ViewportPreviewMixin, bpy.types.Operator):
                 except ValueError as error:
                     self.report({'WARNING'}, f"ShapeFlow: {error}")
                     return {'RUNNING_MODAL'}
-                self._finish(context)
-                return {'FINISHED'}
+                bpy.ops.ed.undo_push(message="ShapeFlow Rectangle")
+                self._reset(context)
+                self._set_status(context)
+                return {'RUNNING_MODAL'}
         return {'RUNNING_MODAL'}
 
     def draw_preview(self, context):

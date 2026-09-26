@@ -95,6 +95,7 @@ class ShapeFlowGeometryTests(unittest.TestCase):
             shapeflow.register()
             self.addCleanup(shapeflow.unregister)
         self.assertFalse(bpy.context.window_manager.shapeflow_mode)
+        self.assertEqual(bpy.context.window_manager.shapeflow_active_tool, 'NONE')
 
 
 if __name__ == '__main__':

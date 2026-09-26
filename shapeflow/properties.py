@@ -74,6 +74,7 @@ def reset_mode_on_load(_unused):
     for window_manager in bpy.data.window_managers:
         window_manager.shapeflow_mode = False
         window_manager.shapeflow_workspace = ""
+        window_manager.shapeflow_active_tool = 'NONE'
 
 
 @persistent
@@ -84,6 +85,7 @@ def disable_mode_after_workspace_change(_scene, _depsgraph):
         if all(window.workspace.name != window_manager.shapeflow_workspace for window in window_manager.windows):
             window_manager.shapeflow_mode = False
             window_manager.shapeflow_workspace = ""
+            window_manager.shapeflow_active_tool = 'NONE'
 
 
 def register_properties():
@@ -98,6 +100,16 @@ def register_properties():
         default="",
         options={'HIDDEN', 'SKIP_SAVE'},
     )
+    bpy.types.WindowManager.shapeflow_active_tool = EnumProperty(
+        name="Active ShapeFlow Tool",
+        items=(
+            ('NONE', "None", "No ShapeFlow tool is active"),
+            ('RECTANGLE', "Rectangle", "Create rectangles continuously"),
+            ('EXTRUDE', "Extrude", "Push or pull faces continuously"),
+        ),
+        default='NONE',
+        options={'HIDDEN', 'SKIP_SAVE'},
+    )
     if reset_mode_on_load not in bpy.app.handlers.load_post:
         bpy.app.handlers.load_post.append(reset_mode_on_load)
     if disable_mode_after_workspace_change not in bpy.app.handlers.depsgraph_update_post:
@@ -109,6 +121,7 @@ def unregister_properties():
         bpy.app.handlers.load_post.remove(reset_mode_on_load)
     if disable_mode_after_workspace_change in bpy.app.handlers.depsgraph_update_post:
         bpy.app.handlers.depsgraph_update_post.remove(disable_mode_after_workspace_change)
+    del bpy.types.WindowManager.shapeflow_active_tool
     del bpy.types.WindowManager.shapeflow_workspace
     del bpy.types.WindowManager.shapeflow_mode
     del bpy.types.Scene.shapeflow

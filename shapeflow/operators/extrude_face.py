@@ -11,7 +11,7 @@ class SHAPEFLOW_OT_extrude_face(ViewportPreviewMixin, bpy.types.Operator):
     bl_idname = "shapeflow.extrude_face"
     bl_label = "Extrude Face"
     bl_description = "Click a face, move to set the distance, and click to confirm"
-    bl_options = {'REGISTER', 'UNDO', 'BLOCKING'}
+    bl_options = {'REGISTER', 'BLOCKING'}
 
     _hovered = None
     _picked = None
@@ -28,15 +28,19 @@ class SHAPEFLOW_OT_extrude_face(ViewportPreviewMixin, bpy.types.Operator):
         )
 
     def invoke(self, context, event):
+        context.window_manager.shapeflow_active_tool = 'EXTRUDE'
+        self._reset()
+        self.add_preview(context)
+        context.window_manager.modal_handler_add(self)
+        self._set_status(context)
+        return {'RUNNING_MODAL'}
+
+    def _reset(self):
         self._hovered = None
         self._picked = None
         self._dragging = False
         self._distance = 0.0
         self._numeric = ""
-        self.add_preview(context)
-        context.window_manager.modal_handler_add(self)
-        self._set_status(context)
-        return {'RUNNING_MODAL'}
 
     def _set_status(self, context):
         suffix = unit_suffix(context.scene.shapeflow.length_unit)
@@ -87,13 +91,28 @@ class SHAPEFLOW_OT_extrude_face(ViewportPreviewMixin, bpy.types.Operator):
         except ValueError as error:
             self.report({'WARNING'}, f"ShapeFlow: {error}")
             return False
-        self._finish(context)
+        bpy.ops.ed.undo_push(message="ShapeFlow Extrude")
+        self._reset()
+        self._set_status(context)
+        context.area.tag_redraw()
         return True
 
     def modal(self, context, event):
-        if event.type in {'ESC', 'RIGHTMOUSE'}:
+        if not context.window_manager.shapeflow_mode or context.window_manager.shapeflow_active_tool != 'EXTRUDE':
             self._finish(context)
             return {'CANCELLED'}
+        if event.type == 'ESC':
+            context.window_manager.shapeflow_active_tool = 'NONE'
+            self._finish(context)
+            return {'CANCELLED'}
+        if event.type == 'RIGHTMOUSE':
+            self._reset()
+            self._set_status(context)
+            context.area.tag_redraw()
+            return {'RUNNING_MODAL'}
+        viewport = viewport_mouse(context, event)
+        if viewport and not (0 <= viewport[1][0] <= viewport[0].width and 0 <= viewport[1][1] <= viewport[0].height):
+            return {'PASS_THROUGH'}
         if event.type == 'MOUSEMOVE' and not self._dragging:
             self._update_hover(context, event)
             context.area.tag_redraw()
@@ -139,9 +158,11 @@ class SHAPEFLOW_OT_extrude_face(ViewportPreviewMixin, bpy.types.Operator):
             if self._begin_drag(context, event):
                 return {'RUNNING_MODAL'}
         if event.type == 'LEFTMOUSE' and event.value == 'RELEASE' and self._dragging:
-            return {'FINISHED'} if self._confirm(context) else {'RUNNING_MODAL'}
+            self._confirm(context)
+            return {'RUNNING_MODAL'}
         if event.type in {'RET', 'NUMPAD_ENTER'} and self._dragging:
-            return {'FINISHED'} if self._confirm(context) else {'RUNNING_MODAL'}
+            self._confirm(context)
+            return {'RUNNING_MODAL'}
         return {'RUNNING_MODAL'}
 
     def draw_preview(self, _context):

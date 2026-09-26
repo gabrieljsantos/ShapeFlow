@@ -11,41 +11,69 @@ class SHAPEFLOW_PT_main(bpy.types.Panel):
     def draw(self, context):
         layout = self.layout
         settings = context.scene.shapeflow
-        layout.label(text="ShapeFlow 0.4.0")
+        window_manager = context.window_manager
+        mode_enabled = window_manager.shapeflow_mode
+        active = window_manager.shapeflow_active_tool
+
+        layout.label(text="ShapeFlow 0.5.0")
         layout.operator("shapeflow.open_workspace", icon='WORKSPACE')
-        mode_enabled = context.window_manager.shapeflow_mode
         if mode_enabled:
             row = layout.row()
             row.alert = True
             operator = row.operator("shapeflow.toggle_mode", text="Exit ShapeFlow Mode", icon='PAUSE')
             operator.enable = False
-            layout.label(text="Mode active", icon='RADIOBUT_ON')
         else:
             operator = layout.operator("shapeflow.toggle_mode", text="Enter ShapeFlow Mode", icon='PLAY')
             operator.enable = True
-            layout.label(text="Blender controls are active", icon='RADIOBUT_OFF')
 
         tools = layout.column()
         tools.enabled = mode_enabled
-        box = tools.box()
-        box.label(text="Drawing")
-        box.prop(settings, "drawing_plane", expand=True)
-        box.separator()
-        box.label(text="Automatic alignment")
-        box.prop(settings, "snap_enabled", text="Enabled")
-        snap_col = box.column()
-        snap_col.enabled = settings.snap_enabled
-        snap_col.prop(settings, "grid_snap")
-        snap_col.prop(settings, "geometry_snap")
-        snap_col.prop(settings, "grid_spacing")
-        snap_col.prop(settings, "snap_distance")
-        snap_col.label(text="Hold Shift for temporary bypass", icon='EVENT_SHIFT')
-        box.operator("shapeflow.draw_rectangle", text="Draw Rectangle", icon='MESH_PLANE')
-        box = tools.box()
-        box.label(text="Direct Modeling")
-        box.prop(settings, "length_unit", text="Typed unit")
-        box.prop(settings, "copy_mode", toggle=True, icon='DUPLICATE')
-        box.operator("shapeflow.extrude_face", text="Extrude", icon='MOD_SOLIDIFY')
-        box.operator("shapeflow.split_face", text="Split", icon='MOD_BOOLEAN')
+
+        plane = tools.box()
+        plane.label(text="Plane")
+        plane.prop(settings, "drawing_plane", expand=True)
+
+        options = tools.box()
+        options.label(text="Options")
+        row = options.row(align=True)
+        row.prop(settings, "copy_mode", text="C  Copy", toggle=True, icon='DUPLICATE')
+        row.prop(settings, "snap_enabled", text="S  Snap", toggle=True, icon='SNAP_ON')
+
+        shapes = tools.box()
+        shapes.label(text="Shapes")
+        grid = shapes.grid_flow(row_major=True, columns=4, even_columns=True, even_rows=True, align=True)
+        operator = grid.operator("shapeflow.activate_tool", text="R", depress=active == 'RECTANGLE')
+        operator.tool = 'RECTANGLE'
+
+        transform = tools.box()
+        transform.label(text="Transform")
+        grid = transform.grid_flow(row_major=True, columns=4, even_columns=True, even_rows=True, align=True)
+        operator = grid.operator("shapeflow.activate_tool", text="E", depress=active == 'EXTRUDE')
+        operator.tool = 'EXTRUDE'
+        operator = grid.operator("shapeflow.tool_placeholder", text="M")
+        operator.tool_name = "Move"
+        operator = grid.operator("shapeflow.tool_placeholder", text="O")
+        operator.tool_name = "Rotate"
+
+        header, body = tools.panel("SHAPEFLOW_PT_alignment_settings", default_closed=True)
+        header.label(text="Alignment settings")
+        if body:
+            body.enabled = settings.snap_enabled
+            body.prop(settings, "grid_snap")
+            body.prop(settings, "geometry_snap")
+            body.prop(settings, "grid_spacing")
+            body.prop(settings, "snap_distance")
+            body.label(text="Hold Shift for temporary bypass", icon='EVENT_SHIFT')
+
+        header, body = tools.panel("SHAPEFLOW_PT_numeric_settings", default_closed=True)
+        header.label(text="Numeric input")
+        if body:
+            body.prop(settings, "length_unit", text="Unit")
+
         tools.separator()
-        tools.label(text="Activate a tool, then choose a face", icon='INFO')
+        if active == 'RECTANGLE':
+            tools.label(text="Rectangle active — Esc to stop", icon='RADIOBUT_ON')
+        elif active == 'EXTRUDE':
+            tools.label(text="Extrude active — Esc to stop", icon='RADIOBUT_ON')
+        else:
+            tools.label(text="Choose a tool", icon='INFO')

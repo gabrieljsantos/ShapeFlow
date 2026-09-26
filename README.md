@@ -1,6 +1,6 @@
 # ShapeFlow
 
-ShapeFlow 0.4.0 is a Blender 5.2 add-on for direct modelling with native `bpy.types.Mesh` objects. It provides a deliberately small workflow: draw a rectangular face, extrude or push a face, split a face from boundary to boundary, and extrude again. The result remains editable with every normal Blender mesh tool and modifier.
+ShapeFlow 0.5.0 is a Blender 5.2 add-on for direct modelling with persistent Rectangle and Extrude modes over native Blender meshes. The result remains editable with every normal Blender mesh tool and modifier.
 
 ## Install and activate
 
@@ -16,8 +16,8 @@ ShapeFlow 0.4.0 is a Blender 5.2 add-on for direct modelling with native `bpy.ty
 ### Rectangle → Extrude → Split → Extrude
 
 1. Click **Enter ShapeFlow Mode**, choose the **XY**, **XZ**, or **YZ** drawing plane, and start from a view where that plane is visible.
-2. Click **Draw Rectangle**. Grid and Geometry alignment are always enabled by default; no activation step is required. A red crosshair and coordinate readout follow the pointer. Click the first corner, move the pointer, then click the opposite corner. Hold Shift to bypass alignment temporarily. You may type an exact origin pair such as `10;12`, press Enter, then type an exact size pair and press Enter.
-3. Choose the typed unit (millimeters by default), then click **Extrude**. Hovering highlights the available face in green. Press and drag that face; release to confirm. While dragging, type a precise value such as `1.5` and press Enter to extrude 1.5 mm.
+2. Click the **R** tool. Grid and Geometry alignment are enabled by default. Create as many rectangles as needed—the tool remains active until Escape or another tool is chosen. Hover each letter button to see its name and purpose.
+3. Choose the typed unit (millimeters by default), then click the **E** tool. Hovering highlights the available face in green. Press and drag that face; release to confirm. The tool remains active for consecutive extrusions. While dragging, type a precise value such as `1.5` and press Enter to extrude 1.5 mm.
 4. Put the pointer over the face to cut and click **Split**. Click a point on one boundary edge, then a point on a different boundary edge.
 5. Put the pointer over either new face, click **Extrude**, move, and click.
 
@@ -29,7 +29,7 @@ Use **Exit ShapeFlow Mode** to return full viewport control to Blender. Loading 
 
 - **Draw Rectangle** creates a new object containing one quad on the selected world plane.
 - **Extrude** enters a tool mode and highlights the face under the pointer. With **Copy** disabled, a face on a closed solid is pushed or pulled by moving its existing boundary, so no internal source face remains. With **Copy** enabled, ShapeFlow preserves the source and extrudes a duplicate with side walls. A lone profile still becomes a solid in either mode. Typed values use the unit selected in the panel.
-- **Split** snaps each click to the nearest boundary edge of the face under the pointer and creates a real topological edge.
+- Split has been removed from the active palette while the future line-based workflow is designed.
 
 ## Current limitations
 
