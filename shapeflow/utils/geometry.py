@@ -1,4 +1,5 @@
 from mathutils import Vector
+from math import cos, pi, sin
 
 
 UNIT_TO_METERS = {
@@ -58,11 +59,44 @@ def plane_axes(plane):
     return Vector((1, 0, 0)), Vector((0, 1, 0)), Vector((0, 0, 1))
 
 
-def rectangle_corners(start, end, plane):
+def rectangle_corners(start, end, plane, origin_mode='DIAMETER', proportional=False):
     axis_u, axis_v, _ = plane_axes(plane)
     delta = end - start
     du, dv = delta.dot(axis_u), delta.dot(axis_v)
+    if proportional:
+        size = max(abs(du), abs(dv))
+        du = size if du >= 0.0 else -size
+        dv = size if dv >= 0.0 else -size
+    if origin_mode == 'CENTER':
+        return [
+            start - axis_u * du - axis_v * dv,
+            start + axis_u * du - axis_v * dv,
+            start + axis_u * du + axis_v * dv,
+            start - axis_u * du + axis_v * dv,
+        ]
     return [start, start + axis_u * du, start + axis_u * du + axis_v * dv, start + axis_v * dv]
+
+
+def regular_polygon_points(start, end, plane, sides, origin_mode='CENTER'):
+    """Build a regular polygon on a ShapeFlow drawing plane."""
+    if sides < 3:
+        raise ValueError("A polygon needs at least three sides")
+    axis_u, axis_v, _normal = plane_axes(plane)
+    if origin_mode == 'DIAMETER':
+        center = (start + end) * 0.5
+        radial = (end - start) * 0.5
+    else:
+        center = start
+        radial = end - start
+    radius = radial.length
+    if radius < 1.0e-6:
+        raise ValueError("Polygon radius is too small")
+    angle = __import__('math').atan2(radial.dot(axis_v), radial.dot(axis_u))
+    return [
+        center + axis_u * (cos(angle + 2.0 * pi * i / sides) * radius)
+        + axis_v * (sin(angle + 2.0 * pi * i / sides) * radius)
+        for i in range(sides)
+    ]
 
 
 def nearest_point_on_segment(point, a, b):

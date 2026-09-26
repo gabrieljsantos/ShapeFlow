@@ -27,6 +27,14 @@ class SHAPEFLOW_OT_draw_rectangle(ViewportPreviewMixin, bpy.types.Operator):
     _snap_result = None
     _numeric = ""
 
+    @staticmethod
+    def _corners(context, start, end):
+        settings = context.scene.shapeflow
+        return rectangle_corners(
+            start, end, settings.drawing_plane,
+            settings.creation_origin, settings.proportional_creation,
+        )
+
     @classmethod
     def poll(cls, context):
         return (
@@ -82,6 +90,9 @@ class SHAPEFLOW_OT_draw_rectangle(ViewportPreviewMixin, bpy.types.Operator):
         if self._start is None:
             return point_from_plane_coordinates(first, second, settings.drawing_plane)
         axis_u, axis_v, _normal = plane_axes(settings.drawing_plane)
+        if settings.creation_origin == 'CENTER':
+            first *= 0.5
+            second *= 0.5
         return self._start + axis_u * first + axis_v * second
 
     def modal(self, context, event):
@@ -123,7 +134,7 @@ class SHAPEFLOW_OT_draw_rectangle(ViewportPreviewMixin, bpy.types.Operator):
                 self._set_status(context)
                 return {'RUNNING_MODAL'}
             try:
-                corners = rectangle_corners(self._start, point, context.scene.shapeflow.drawing_plane)
+                corners = self._corners(context, self._start, point)
                 create_rectangle_object(context, corners)
             except ValueError as error:
                 self.report({'WARNING'}, f"ShapeFlow: {error}")
@@ -143,7 +154,7 @@ class SHAPEFLOW_OT_draw_rectangle(ViewportPreviewMixin, bpy.types.Operator):
                 self._set_status(context)
             else:
                 try:
-                    corners = rectangle_corners(self._start, point, context.scene.shapeflow.drawing_plane)
+                    corners = self._corners(context, self._start, point)
                     create_rectangle_object(context, corners)
                 except ValueError as error:
                     self.report({'WARNING'}, f"ShapeFlow: {error}")
@@ -168,8 +179,7 @@ class SHAPEFLOW_OT_draw_rectangle(ViewportPreviewMixin, bpy.types.Operator):
             if self._snap_result and self._snap_result.guide_v:
                 draw_polyline([self._current, self._snap_result.guide_v], color=color_v)
         if self._start is not None and self._current is not None:
-            plane = context.scene.shapeflow.drawing_plane
-            draw_polyline(rectangle_corners(self._start, self._current, plane), closed=True)
+            draw_polyline(self._corners(context, self._start, self._current), closed=True)
 
     def draw_hud(self, context):
         if self._current is None:

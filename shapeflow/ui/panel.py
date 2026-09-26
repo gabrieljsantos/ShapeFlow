@@ -15,7 +15,7 @@ class SHAPEFLOW_PT_main(bpy.types.Panel):
         mode_enabled = window_manager.shapeflow_mode
         active = window_manager.shapeflow_active_tool
 
-        layout.label(text="ShapeFlow 0.5.1")
+        layout.label(text="ShapeFlow 0.6.0")
         layout.operator("shapeflow.open_workspace", icon='WORKSPACE')
         if mode_enabled:
             row = layout.row()
@@ -38,12 +38,16 @@ class SHAPEFLOW_PT_main(bpy.types.Panel):
         row = options.row(align=True)
         row.prop(settings, "copy_mode", text="C  Copy", toggle=True, icon='DUPLICATE')
         row.prop(settings, "snap_enabled", text="S  Snap", toggle=True, icon='SNAP_ON')
+        row = options.row(align=True)
+        row.prop(settings, "creation_origin", expand=True)
+        options.prop(settings, "proportional_creation", text="P  Proportional", toggle=True)
 
         shapes = tools.box()
         shapes.label(text="Shapes")
         grid = shapes.grid_flow(row_major=True, columns=4, even_columns=True, even_rows=True, align=True)
         operator = grid.operator("shapeflow.activate_tool", text="R", depress=active == 'RECTANGLE')
         operator.tool = 'RECTANGLE'
+        grid.operator("shapeflow.polygon_settings", text="P", depress=active == 'POLYGON')
 
         transform = tools.box()
         transform.label(text="Transform")
@@ -73,6 +77,8 @@ class SHAPEFLOW_PT_main(bpy.types.Panel):
         tools.separator()
         if active == 'RECTANGLE':
             tools.label(text="Rectangle active — Esc to stop", icon='RADIOBUT_ON')
+        elif active == 'POLYGON':
+            tools.label(text=f"Polygon ({settings.polygon_sides}) active — Esc to stop", icon='RADIOBUT_ON')
         elif active == 'EXTRUDE':
             tools.label(text="Extrude active — Esc to stop", icon='RADIOBUT_ON')
         else:

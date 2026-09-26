@@ -5,10 +5,10 @@ from mathutils import Vector
 EPSILON = 1.0e-6
 
 
-def create_rectangle_object(context, corners, name="ShapeFlow Rectangle"):
-    """Create a normal Blender Mesh object containing one quad."""
-    if len(corners) != 4:
-        raise ValueError("A rectangle needs exactly four corners")
+def create_profile_object(context, corners, name="ShapeFlow Profile"):
+    """Create a normal Blender Mesh object containing one polygon face."""
+    if len(corners) < 3:
+        raise ValueError("A profile needs at least three corners")
     if min((Vector(corners[(i + 1) % 4]) - Vector(corners[i])).length for i in range(4)) < EPSILON:
         raise ValueError("Rectangle sides are too small")
     mesh = bpy.data.meshes.new(name)
@@ -22,3 +22,8 @@ def create_rectangle_object(context, corners, name="ShapeFlow Rectangle"):
     context.view_layer.objects.active = obj
     return obj
 
+
+def create_rectangle_object(context, corners, name="ShapeFlow Rectangle"):
+    if len(corners) != 4:
+        raise ValueError("A rectangle needs exactly four corners")
+    return create_profile_object(context, corners, name)

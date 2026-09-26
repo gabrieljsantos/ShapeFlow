@@ -15,6 +15,7 @@ from shapeflow.mesh.splitting import split_face_between_edges
 from shapeflow.utils.geometry import (
     blender_units_to_typed_length,
     parse_coordinate_pair,
+    regular_polygon_points,
     snap_scalar,
     typed_length_to_blender_units,
 )
@@ -90,6 +91,15 @@ class ShapeFlowGeometryTests(unittest.TestCase):
     def test_grid_snap(self):
         self.assertAlmostEqual(snap_scalar(0.00137, 0.001), 0.001)
         self.assertAlmostEqual(snap_scalar(0.00162, 0.001), 0.002)
+
+    def test_regular_polygon(self):
+        points = regular_polygon_points(
+            __import__('mathutils').Vector((0, 0, 0)),
+            __import__('mathutils').Vector((1, 0, 0)),
+            'XY', 5,
+        )
+        self.assertEqual(len(points), 5)
+        self.assertTrue(all(abs(point.length - 1.0) < 1.0e-6 for point in points))
 
     def test_coordinate_pair(self):
         self.assertEqual(parse_coordinate_pair("10.37;12"), (10.37, 12.0))

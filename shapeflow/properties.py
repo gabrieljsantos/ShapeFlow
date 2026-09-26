@@ -14,6 +14,26 @@ class ShapeFlowSettings(bpy.types.PropertyGroup):
         description="Duplicate before transforming; future Move and Rotate tools will use the same setting",
         default=False,
     )
+    polygon_sides: IntProperty(
+        name="Sides",
+        description="Number of sides used by the Polygon tool",
+        default=5,
+        min=3,
+        max=256,
+    )
+    creation_origin: EnumProperty(
+        name="Creation",
+        items=(
+            ('CENTER', "Center", "First point is the center; drag to define radius and rotation"),
+            ('DIAMETER', "Across", "First and second points define opposite sides"),
+        ),
+        default='CENTER',
+    )
+    proportional_creation: BoolProperty(
+        name="Proportional",
+        description="Keep equal dimensions while creating compatible shapes",
+        default=True,
+    )
     drawing_plane: EnumProperty(
         name="Drawing Plane",
         items=(
@@ -105,6 +125,7 @@ def register_properties():
         items=(
             ('NONE', "None", "No ShapeFlow tool is active"),
             ('RECTANGLE', "Rectangle", "Create rectangles continuously"),
+            ('POLYGON', "Polygon", "Create regular polygons continuously"),
             ('EXTRUDE', "Extrude", "Push or pull faces continuously"),
         ),
         default='NONE',
