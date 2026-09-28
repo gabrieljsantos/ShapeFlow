@@ -9,11 +9,14 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if ROOT not in sys.path:
     sys.path.insert(0, ROOT)
 
-from shapeflow.mesh.creation import create_rectangle_object
+from shapeflow.mesh.creation import create_polyline_object, create_profile_object, create_rectangle_object
 from shapeflow.mesh.extrusion import extrude_face
 from shapeflow.mesh.splitting import split_face_between_edges
 from shapeflow.utils.geometry import (
     blender_units_to_typed_length,
+    arc_points_three,
+    bezier_points,
+    crescent_points,
     parse_coordinate_pair,
     regular_polygon_points,
     snap_scalar,
@@ -100,6 +103,31 @@ class ShapeFlowGeometryTests(unittest.TestCase):
         )
         self.assertEqual(len(points), 5)
         self.assertTrue(all(abs(point.length - 1.0) < 1.0e-6 for point in points))
+
+    def test_three_point_arc(self):
+        from mathutils import Vector
+        start, middle, end = Vector((1, 0, 0)), Vector((0, 1, 0)), Vector((-1, 0, 0))
+        points = arc_points_three(start, middle, end, 'XY', segments=16)
+        self.assertEqual(len(points), 17)
+        self.assertLess((points[0] - start).length, 1.0e-6)
+        self.assertLess((points[-1] - end).length, 1.0e-6)
+        self.assertGreater(max(point.y for point in points), 0.99)
+
+    def test_bezier_curve_and_polyline(self):
+        from mathutils import Vector
+        start, end = Vector((0, 0, 0)), Vector((1, 0, 0))
+        points = bezier_points(start, Vector((0, 1, 0)), Vector((1, 1, 0)), end, segments=8)
+        self.assertEqual(points[0], start)
+        self.assertEqual(points[-1], end)
+        obj = create_polyline_object(bpy.context, points)
+        self.assertEqual(len(obj.data.edges), 8)
+
+    def test_crescent_profile_supports_more_than_four_vertices(self):
+        from mathutils import Vector
+        points = crescent_points(Vector((0, 0, 0)), Vector((1, 0, 0)), Vector((0.25, 0, 0)), 'XY', segments=12)
+        obj = create_profile_object(bpy.context, points, "ShapeFlow Crescent Test")
+        self.assertEqual(len(obj.data.vertices), len(points))
+        self.assertEqual(len(obj.data.polygons), 1)
 
     def test_profile_can_be_created_on_offset_plane(self):
         from mathutils import Vector

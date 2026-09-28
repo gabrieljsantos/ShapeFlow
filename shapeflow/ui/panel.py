@@ -15,7 +15,7 @@ class SHAPEFLOW_PT_main(bpy.types.Panel):
         mode_enabled = window_manager.shapeflow_mode
         active = window_manager.shapeflow_active_tool
 
-        layout.label(text="ShapeFlow 0.8.0")
+        layout.label(text="ShapeFlow 0.9.0")
         layout.operator("shapeflow.open_workspace", icon='WORKSPACE')
         if mode_enabled:
             row = layout.row()
@@ -56,6 +56,12 @@ class SHAPEFLOW_PT_main(bpy.types.Panel):
         operator = grid.operator("shapeflow.activate_tool", text="R", depress=active == 'RECTANGLE')
         operator.tool = 'RECTANGLE'
         grid.operator("shapeflow.polygon_settings", text="P", depress=active == 'POLYGON')
+        operator = grid.operator("shapeflow.draw_advanced", text="A", depress=active == 'ARC')
+        operator.tool = 'ARC'
+        operator = grid.operator("shapeflow.draw_advanced", text="B", depress=active == 'BEZIER')
+        operator.tool = 'BEZIER'
+        operator = grid.operator("shapeflow.draw_advanced", text="L", depress=active == 'CRESCENT')
+        operator.tool = 'CRESCENT'
 
         transform = tools.box()
         transform.label(text="Transform")
@@ -96,6 +102,12 @@ class SHAPEFLOW_PT_main(bpy.types.Panel):
             tools.label(text="Rectangle active — Esc to stop", icon='RADIOBUT_ON')
         elif active == 'POLYGON':
             tools.label(text=f"Polygon ({settings.polygon_sides}) active — Esc to stop", icon='RADIOBUT_ON')
+        elif active == 'ARC':
+            tools.label(text="Arc active — 3 points — Esc to stop", icon='RADIOBUT_ON')
+        elif active == 'BEZIER':
+            tools.label(text="Bezier active — points and handles", icon='RADIOBUT_ON')
+        elif active == 'CRESCENT':
+            tools.label(text="Crescent active — center, radius, curvature", icon='RADIOBUT_ON')
         elif active == 'EXTRUDE':
             tools.label(text="Extrude active — Esc to stop", icon='RADIOBUT_ON')
         elif active == 'MOVE':

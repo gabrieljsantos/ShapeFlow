@@ -1,5 +1,5 @@
 from mathutils import Vector
-from math import cos, pi, sin
+from math import atan2, cos, pi, sin
 
 
 UNIT_TO_METERS = {
@@ -97,6 +97,64 @@ def regular_polygon_points(start, end, plane, sides, origin_mode='CENTER'):
         + axis_v * (sin(angle + 2.0 * pi * i / sides) * radius)
         for i in range(sides)
     ]
+
+
+def _plane_point(u, v, offset, plane):
+    axis_u, axis_v, normal = plane_axes(plane)
+    return axis_u * u + axis_v * v + normal * offset
+
+
+def arc_points_three(start, middle, end, plane, segments=32):
+    """Sample the circular arc that passes through three coplanar points."""
+    p1 = plane_coordinates(start, plane); p2 = plane_coordinates(middle, plane); p3 = plane_coordinates(end, plane)
+    x1, y1 = p1; x2, y2 = p2; x3, y3 = p3
+    determinant = 2.0 * (x1 * (y2 - y3) + x2 * (y3 - y1) + x3 * (y1 - y2))
+    if abs(determinant) < 1.0e-10:
+        raise ValueError("Arc points must not be collinear")
+    ux = ((x1*x1+y1*y1)*(y2-y3) + (x2*x2+y2*y2)*(y3-y1) + (x3*x3+y3*y3)*(y1-y2)) / determinant
+    uy = ((x1*x1+y1*y1)*(x3-x2) + (x2*x2+y2*y2)*(x1-x3) + (x3*x3+y3*y3)*(x2-x1)) / determinant
+    a1, a2, a3 = atan2(y1-uy, x1-ux), atan2(y2-uy, x2-ux), atan2(y3-uy, x3-ux)
+    tau = 2.0 * pi
+    ccw_total = (a3 - a1) % tau
+    ccw_middle = (a2 - a1) % tau
+    sweep = ccw_total if ccw_middle <= ccw_total else ccw_total - tau
+    radius = ((x1-ux)**2 + (y1-uy)**2) ** 0.5
+    _u, _v, normal = plane_axes(plane)
+    offset = start.dot(normal)
+    return [_plane_point(ux + cos(a1+sweep*i/segments)*radius, uy + sin(a1+sweep*i/segments)*radius, offset, plane) for i in range(segments+1)]
+
+
+def bezier_points(start, start_handle, end_handle, end, segments=32):
+    points = []
+    for index in range(segments + 1):
+        t = index / segments; one = 1.0 - t
+        points.append(start * (one**3) + start_handle * (3*one*one*t) + end_handle * (3*one*t*t) + end * (t**3))
+    return points
+
+
+def crescent_points(center, rim, curvature, plane, segments=32):
+    """Create a closed crescent outline from center, radius and inner bulge."""
+    axis_u, axis_v, normal = plane_axes(plane)
+    radial = rim - center
+    radius = radial.length
+    if radius < 1.0e-6:
+        raise ValueError("Crescent radius is too small")
+    direction = radial.normalized()
+    side = normal.cross(direction).normalized()
+    first = center + side * radius
+    last = center - side * radius
+    outer = []
+    for i in range(segments + 1):
+        angle = pi * 0.5 - pi * i / segments
+        outer.append(center + side * (sin(angle) * radius) + direction * (cos(angle) * radius))
+    control = curvature
+    inner = []
+    # Omit the final `first` point: the polygon closing edge supplies it and
+    # avoids a duplicate zero-length edge in Blender's mesh.
+    for i in range(1, segments):
+        t = i / segments; one = 1.0 - t
+        inner.append(last * (one*one) + control * (2*one*t) + first * (t*t))
+    return outer + inner
 
 
 def nearest_point_on_segment(point, a, b):

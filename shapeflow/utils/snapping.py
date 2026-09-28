@@ -89,12 +89,19 @@ def collect_object_snap_geometry(obj):
         return [], []
     matrix = obj.matrix_world
     vertices = [matrix @ vertex.co for vertex in obj.data.vertices]
-    candidates = [SnapCandidate(point.copy(), "VERTEX") for point in vertices]
+    vertex_edges = {index: [] for index in range(len(vertices))}
     edges = []
     for edge in obj.data.edges:
         a = vertices[edge.vertices[0]].copy()
         b = vertices[edge.vertices[1]].copy()
         edges.append((a, b))
+        vertex_edges[edge.vertices[0]].append((a.copy(), b.copy()))
+        vertex_edges[edge.vertices[1]].append((a.copy(), b.copy()))
+    candidates = [
+        SnapCandidate(point.copy(), "VERTEX", tuple(vertex_edges[index]))
+        for index, point in enumerate(vertices)
+    ]
+    for a, b in edges:
         candidates.append(SnapCandidate((a + b) * 0.5, "MIDPOINT", (a.copy(), b.copy())))
     for polygon in obj.data.polygons:
         outline = tuple(vertices[index].copy() for index in polygon.vertices)
