@@ -59,6 +59,35 @@ def plane_axes(plane):
     return Vector((1, 0, 0)), Vector((0, 1, 0)), Vector((0, 0, 1))
 
 
+def axis_name(axis):
+    """Return the world-axis name represented by a unit direction vector."""
+    if axis is None:
+        return None
+    components = (abs(axis.x), abs(axis.y), abs(axis.z))
+    return ('X', 'Y', 'Z')[max(range(3), key=components.__getitem__)]
+
+
+def plane_from_axes(first, second):
+    """Return the drawing plane defined by two different world-axis names."""
+    pair = frozenset((first, second))
+    return {
+        frozenset(('X', 'Y')): 'XY',
+        frozenset(('X', 'Z')): 'XZ',
+        frozenset(('Y', 'Z')): 'YZ',
+    }.get(pair)
+
+
+def accumulate_axis_intent(candidate, pixels, axis, motion_pixels, threshold):
+    """Accumulate a continuous screen-space gesture before accepting an auto axis."""
+    if axis is None:
+        return candidate, pixels, False
+    if axis != candidate:
+        candidate = axis
+        pixels = 0.0
+    pixels += max(0.0, float(motion_pixels))
+    return candidate, pixels, pixels >= float(threshold)
+
+
 def rectangle_corners(start, end, plane, origin_mode='DIAMETER', proportional=False):
     axis_u, axis_v, _ = plane_axes(plane)
     delta = end - start

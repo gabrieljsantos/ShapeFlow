@@ -47,8 +47,9 @@ def _projected_axis(context, region, origin, axis):
     if a is None or b is None or (b - a).length < 1.0e-5:
         return None
     direction = b - a
+    pixels_per_unit = direction.length
     direction.normalize()
-    return direction
+    return direction, pixels_per_unit
 
 
 def _axis_drag(context, region, origin, mouse_start, mouse_now, allowed='XYZ', bypass=False):
@@ -57,15 +58,19 @@ def _axis_drag(context, region, origin, mouse_start, mouse_now, allowed='XYZ', b
     for name, axis in AXES.items():
         if name not in allowed:
             continue
-        screen_axis = _projected_axis(context, region, origin, axis)
-        if screen_axis is not None:
-            candidates.append((abs(delta.dot(screen_axis)), delta.dot(screen_axis), axis))
+        projection = _projected_axis(context, region, origin, axis)
+        if projection is not None:
+            screen_axis, pixels_per_unit = projection
+            candidates.append((
+                abs(delta.dot(screen_axis)), delta.dot(screen_axis),
+                pixels_per_unit, axis,
+            ))
     if not candidates:
         return Vector(), None
-    _score, pixels, axis = max(candidates, key=lambda item: item[0])
-    distance = pixels * max(context.space_data.region_3d.view_distance, 0.001) * 2.0 / max(region.height, 1)
+    _score, pixels, pixels_per_unit, axis = max(candidates, key=lambda item: item[0])
+    distance = pixels / pixels_per_unit
     settings = context.scene.shapeflow
-    if settings.snap_enabled and settings.grid_snap and not bypass:
+    if settings.grid_snap and not bypass:
         distance = snap_scalar(distance, _step(context))
     return axis * distance, axis
 
@@ -93,10 +98,11 @@ class SHAPEFLOW_OT_move_object(_SpatialToolMixin, bpy.types.Operator):
         self._hover_object = None; self._hover_snap = None; self._hover_face = None
         self._hover_face_index = None
         self._hover_points = (); self._nearby_targets = ()
+        self._snap_skip = 0
         self._partial = False; self._partial_vertices = (); self._partial_start = {}
         self._current_offset = Vector()
         self.add_preview(context); context.window_manager.modal_handler_add(self)
-        context.workspace.status_text_set("ShapeFlow Move: drag an object • Copy duplicates first • Esc stops")
+        context.workspace.status_text_set("ShapeFlow Move: drag an object • Alt bypasses magnetic • Shift free • Esc stops")
         return {'RUNNING_MODAL'}
 
     def _update_hover(self, context, region, mouse):
@@ -136,6 +142,9 @@ class SHAPEFLOW_OT_move_object(_SpatialToolMixin, bpy.types.Operator):
         if self._outside_viewport(context, event):
             return {'PASS_THROUGH'}
         region, mouse = viewport_mouse(context, event)
+        if event.type == 'TAB' and event.value == 'PRESS' and self._dragging:
+            self._snap_skip += 1
+            return {'RUNNING_MODAL'}
         if event.type == 'MOUSEMOVE' and not self._dragging:
             self._update_hover(context, region, mouse)
             return {'RUNNING_MODAL'}
@@ -169,6 +178,7 @@ class SHAPEFLOW_OT_move_object(_SpatialToolMixin, bpy.types.Operator):
             self._mouse_start = mouse
             self._candidates, self._edges = collect_scene_snap_geometry(context, exclude=obj)
             self._snap_target = None; self._snap_kind = None; self._snap_highlight = None; self._dragging = True
+            self._snap_skip = 0
             self._nearby_targets = ()
             self._hover_object = None
             mode = "partial geometry" if self._partial else "object"
@@ -178,16 +188,19 @@ class SHAPEFLOW_OT_move_object(_SpatialToolMixin, bpy.types.Operator):
         elif event.type == 'MOUSEMOVE' and self._dragging:
             settings = context.scene.shapeflow
             target = nearest_screen_geometry(
-                context, region, mouse, self._candidates, self._edges, settings.snap_distance
+                context, region, mouse, self._candidates, self._edges, settings.snap_distance,
+                skip=self._snap_skip,
             )
             rv3d = context.space_data.region_3d
             nearby_radius = settings.snap_distance * 2.0
+            show_guides = settings.smart_guides and settings.geometry_snap and not event.alt and not event.shift
             self._nearby_targets = tuple(
                 candidate.point for candidate in self._candidates
-                if (screen := view3d_utils.location_3d_to_region_2d(region, rv3d, candidate.point)) is not None
+                if show_guides
+                and (screen := view3d_utils.location_3d_to_region_2d(region, rv3d, candidate.point)) is not None
                 and (screen - Vector(mouse)).length <= nearby_radius
             )
-            if target and settings.snap_enabled and settings.geometry_snap and not event.shift:
+            if target and settings.geometry_snap and not event.alt and not event.shift:
                 offset = target.point - self._anchor
                 changed_target = self._snap_target is None or (self._snap_target - target.point).length > 1.0e-7
                 self._snap_target = target.point.copy(); self._snap_kind = target.kind
@@ -210,7 +223,7 @@ class SHAPEFLOW_OT_move_object(_SpatialToolMixin, bpy.types.Operator):
                     start = ray_plane(context, self._mouse_start, self._anchor, normal)
                     now = ray_plane(context, mouse, self._anchor, normal)
                     offset = (now - start) if start is not None and now is not None else Vector()
-                    if settings.snap_enabled and settings.grid_snap and not event.shift:
+                    if settings.grid_snap and not event.shift:
                         spacing = _step(context)
                         offset = Vector(tuple(snap_scalar(value, spacing) for value in offset))
             self._current_offset = offset.copy()
@@ -232,6 +245,7 @@ class SHAPEFLOW_OT_move_object(_SpatialToolMixin, bpy.types.Operator):
             self._partial = False; self._partial_vertices = (); self._partial_start = {}
             self._current_offset = Vector()
             self._nearby_targets = ()
+            self._snap_skip = 0
             bpy.ops.ed.undo_push(message="ShapeFlow Move Object")
             context.workspace.status_text_set("ShapeFlow Move: drag another object • Esc stops")
         return {'RUNNING_MODAL'}
@@ -249,6 +263,7 @@ class SHAPEFLOW_OT_move_object(_SpatialToolMixin, bpy.types.Operator):
         self._dragging = False; self._object = None; self._anchor = None; self._anchor_highlight = None
         self._snap_target = None; self._snap_highlight = None
         self._nearby_targets = ()
+        self._snap_skip = 0
         self._partial = False; self._partial_vertices = (); self._partial_start = {}
         self._current_offset = Vector()
 

@@ -5,7 +5,6 @@ from mathutils import Vector
 from bpy_extras import view3d_utils
 
 from .geometry import (
-    nearest_point_on_segment,
     plane_axes,
     plane_coordinates,
     point_from_plane_coordinates,
@@ -134,19 +133,19 @@ def nearest_screen_candidate(context, region, mouse, candidates, threshold):
     return best[1] if best else None
 
 
-def nearest_screen_geometry(context, region, mouse, candidates, edges, threshold):
-    """Find a point, or any position along an edge, near the screen cursor."""
+def _screen_geometry_matches(context, region, mouse, candidates, edges, threshold):
+    """Return all geometry under the cursor in Move priority order."""
     rv3d = context.space_data.region_3d
     mouse = Vector(mouse)
-    best = None
+    matches = []
     for candidate in candidates:
         screen = view3d_utils.location_3d_to_region_2d(region, rv3d, candidate.point)
         if screen is None:
             continue
         distance = (screen - mouse).length
         score = (SNAP_PRIORITY.get(candidate.kind, 99), distance)
-        if distance <= threshold and (best is None or score < best[0]):
-            best = (score, candidate)
+        if distance <= threshold:
+            matches.append((score, candidate))
     for a, b in edges:
         screen_a = view3d_utils.location_3d_to_region_2d(region, rv3d, a)
         screen_b = view3d_utils.location_3d_to_region_2d(region, rv3d, b)
@@ -158,46 +157,101 @@ def nearest_screen_geometry(context, region, mouse, candidates, edges, threshold
         screen_point = screen_a.lerp(screen_b, factor)
         distance = (screen_point - mouse).length
         score = (SNAP_PRIORITY["EDGE"], distance)
-        if distance <= threshold and (best is None or score < best[0]):
-            best = (score, SnapCandidate(a.lerp(b, factor), "EDGE", (a.copy(), b.copy())))
-    return best[1] if best else None
+        if distance <= threshold:
+            matches.append((score, SnapCandidate(a.lerp(b, factor), "EDGE", (a.copy(), b.copy()))))
+    matches.sort(key=lambda item: item[0])
+    return [candidate for _score, candidate in matches]
 
 
-def travel_3d_cursor(context, region, mouse, previous_mouse, point, settings, candidates, edges, bypass=False):
-    """Advance a construction cursor along the world axis matching mouse direction."""
-    geometry = nearest_screen_geometry(context, region, mouse, candidates, edges, settings.snap_distance)
-    if geometry and settings.snap_enabled and settings.geometry_snap and not bypass:
-        return geometry.point.copy(), geometry.kind, None
+def nearest_screen_geometry(context, region, mouse, candidates, edges, threshold, skip=0):
+    """Find geometry near the cursor, optionally skipping higher-priority hits."""
+    matches = _screen_geometry_matches(context, region, mouse, candidates, edges, threshold)
+    return matches[skip] if skip < len(matches) else None
+
+
+def travel_3d_cursor(context, region, mouse, previous_mouse, point, settings, candidates, edges,
+                     bypass=False, magnetic_bypass=False, skip=0, raw_point=None,
+                     snap_origin=None, allowed_axes=None):
+    """Position the construction cursor using geometry, an axis, or the drawing plane."""
+    geometry = nearest_screen_geometry(
+        context, region, mouse, candidates, edges, settings.snap_distance, skip=skip
+    )
+    if geometry and settings.geometry_snap and not bypass and not magnetic_bypass:
+        snapped = geometry.point.copy()
+        return snapped, geometry.kind, None, snapped.copy()
+
+    if not settings.axis_cursor:
+        rv3d = context.space_data.region_3d
+        ray_origin = view3d_utils.region_2d_to_origin_3d(region, rv3d, mouse)
+        ray_direction = view3d_utils.region_2d_to_vector_3d(region, rv3d, mouse)
+        _axis_u, _axis_v, normal = plane_axes(settings.drawing_plane)
+        denominator = ray_direction.dot(normal)
+        if abs(denominator) < 1.0e-8:
+            current = Vector(point)
+            return current, "CURSOR", None, current.copy()
+        distance = (Vector(point) - ray_origin).dot(normal) / denominator
+        result = ray_origin + ray_direction * distance
+        if settings.grid_snap and not bypass:
+            spacing = typed_length_to_blender_units(
+                settings.grid_spacing, settings.length_unit,
+                context.scene.unit_settings.scale_length,
+            )
+            u, v = plane_coordinates(result, settings.drawing_plane)
+            plane_offset = normal * Vector(point).dot(normal)
+            result = point_from_plane_coordinates(
+                snap_scalar(u, spacing), snap_scalar(v, spacing), settings.drawing_plane,
+            ) + plane_offset
+        return result, "PLANE", None, result.copy()
+
     if previous_mouse is None:
-        return Vector(point), "CURSOR", None
+        current = Vector(point)
+        return current, "CURSOR", None, current.copy()
     delta = Vector(mouse) - Vector(previous_mouse)
-    if delta.length < 0.25:
-        return Vector(point), "CURSOR", None
+    if delta.length < 1.0e-6:
+        current = Vector(point)
+        raw = Vector(raw_point) if raw_point is not None else current.copy()
+        return current, "CURSOR", None, raw
     rv3d = context.space_data.region_3d
     origin_screen = view3d_utils.location_3d_to_region_2d(region, rv3d, point)
     if origin_screen is None:
-        return Vector(point), "CURSOR", None
+        current = Vector(point)
+        raw = Vector(raw_point) if raw_point is not None else current.copy()
+        return current, "CURSOR", None, raw
     options = []
     for name, axis in (
         ('X', Vector((1, 0, 0))), ('Y', Vector((0, 1, 0))), ('Z', Vector((0, 0, 1))),
     ):
+        if allowed_axes is not None and name not in allowed_axes:
+            continue
         axis_screen = view3d_utils.location_3d_to_region_2d(region, rv3d, Vector(point) + axis)
         if axis_screen is None or (axis_screen - origin_screen).length < 1.0e-5:
             continue
         direction = axis_screen - origin_screen
+        pixels_per_unit = direction.length
         direction.normalize()
-        options.append((abs(delta.normalized().dot(direction)), delta.dot(direction), name, axis))
+        options.append((
+            abs(delta.normalized().dot(direction)), delta.dot(direction),
+            pixels_per_unit, name, axis,
+        ))
     if not options:
-        return Vector(point), "CURSOR", None
-    _alignment, signed_pixels, name, axis = max(options, key=lambda item: item[0])
-    distance = signed_pixels * max(rv3d.view_distance, 0.001) * 2.0 / max(region.height, 1)
-    if settings.snap_enabled and settings.grid_snap and not bypass:
+        current = Vector(point)
+        raw = Vector(raw_point) if raw_point is not None else current.copy()
+        return current, "CURSOR", None, raw
+    _alignment, signed_pixels, pixels_per_unit, name, axis = max(
+        options, key=lambda item: item[0]
+    )
+    distance = signed_pixels / pixels_per_unit
+    raw = Vector(raw_point) if raw_point is not None else Vector(point)
+    raw_result = raw + axis * distance
+    result = raw_result.copy()
+    if settings.grid_snap and not bypass:
         spacing = typed_length_to_blender_units(
             settings.grid_spacing, settings.length_unit, context.scene.unit_settings.scale_length
         )
-        distance = snap_scalar(distance, spacing)
-    result = Vector(point) + axis * distance
-    return result, f"AXIS_{name}", axis
+        origin = Vector(snap_origin) if snap_origin is not None else Vector(point)
+        displacement = raw_result - origin
+        result = origin + Vector(tuple(snap_scalar(value, spacing) for value in displacement))
+    return result, f"AXIS_{name}", axis, raw_result
 
 
 def _screen_distance(region, rv3d, a, b):
@@ -208,8 +262,9 @@ def _screen_distance(region, rv3d, a, b):
     return (a2 - b2).length
 
 
-def snap_draw_point(context, region, raw_point, plane, settings, candidates, edges, bypass=False):
-    if bypass or not settings.snap_enabled:
+def snap_draw_point(context, region, raw_point, plane, settings, candidates, edges,
+                    bypass=False, magnetic_bypass=False, skip=0, origin=None):
+    if bypass:
         return SnapResult(raw_point.copy())
 
     unit_spacing = typed_length_to_blender_units(
@@ -221,28 +276,39 @@ def snap_draw_point(context, region, raw_point, plane, settings, candidates, edg
     u, v = raw_u, raw_v
     kind = "FREE"
     if settings.grid_snap:
-        u, v = snap_scalar(u, unit_spacing), snap_scalar(v, unit_spacing)
+        if origin is None:
+            origin_u = origin_v = 0.0
+        else:
+            origin_u, origin_v = plane_coordinates(origin, plane)
+        u = origin_u + snap_scalar(u - origin_u, unit_spacing)
+        v = origin_v + snap_scalar(v - origin_v, unit_spacing)
         kind = "GRID"
     point = point_from_plane_coordinates(u, v, plane) + plane_offset
 
-    if not settings.geometry_snap:
+    if not settings.geometry_snap or magnetic_bypass:
         return SnapResult(point, kind)
 
     rv3d = context.space_data.region_3d
     threshold = float(settings.snap_distance)
-    # Strongest snap: a known point or any position along a coplanar edge.
-    best = None
-    for candidate in candidates:
-        distance = _screen_distance(region, rv3d, raw_point, candidate.point)
-        if distance <= threshold and (best is None or distance < best[0]):
-            best = (distance, candidate.point, candidate.kind)
-    for a, b in edges:
-        nearest, _factor = nearest_point_on_segment(raw_point, a, b)
-        distance = _screen_distance(region, rv3d, raw_point, nearest)
-        if distance <= threshold and (best is None or distance < best[0]):
-            best = (distance, nearest, "EDGE")
-    if best is not None:
-        return SnapResult(best[1].copy(), best[2], best[1].copy(), best[1].copy())
+    # Reuse Move's screen-space priority, limited to the drawing tool's existing
+    # coplanar candidate set. Tab advances through this ordered list.
+    raw_screen = view3d_utils.location_3d_to_region_2d(region, rv3d, raw_point)
+    matches = (
+        _screen_geometry_matches(context, region, raw_screen, candidates, edges, threshold)
+        if raw_screen is not None else []
+    )
+    if skip < len(matches):
+        geometry = matches[skip]
+        return SnapResult(
+            geometry.point.copy(), geometry.kind, geometry.point.copy(), geometry.point.copy()
+        )
+
+    # After all direct hits, offer axis alignment once, then a free cursor.
+    if skip > len(matches):
+        return SnapResult(point, kind)
+
+    if not settings.smart_guides:
+        return SnapResult(point, kind)
 
     # Secondary snap: align either crosshair axis with known geometry.
     guide_u = guide_v = None

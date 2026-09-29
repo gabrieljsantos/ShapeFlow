@@ -33,19 +33,21 @@ class SHAPEFLOW_PT_main(bpy.types.Panel):
         plane.label(text="Face orientation")
         row = plane.row(align=True)
         row.prop(settings, "drawing_plane", expand=True)
+        if settings.drawing_plane == 'AUTO':
+            plane.prop(settings, "auto_axis_threshold", text="Axis gesture")
 
         space = tools.box()
         space.label(text="3D construction cursor")
         space.prop(settings, "drawing_origin", text="Position")
         row = space.row(align=True)
         row.prop(settings, "show_native_grid", text="Grid", toggle=True, icon='GRID')
-        row.label(text="Moves inside creation tools")
+        row.prop(settings, "axis_cursor", text="Axis travel", toggle=True)
+        space.label(text="Mouse direction follows projected X/Y/Z")
 
         options = tools.box()
         options.label(text="Options")
         row = options.row(align=True)
         row.prop(settings, "copy_mode", text="C  Copy", toggle=True, icon='DUPLICATE')
-        row.prop(settings, "snap_enabled", text="S  Snap", toggle=True, icon='SNAP_ON')
         row = options.row(align=True)
         row.prop(settings, "creation_origin", expand=True)
         options.prop(settings, "proportional_creation", text="P  Proportional", toggle=True)
@@ -85,12 +87,18 @@ class SHAPEFLOW_PT_main(bpy.types.Panel):
         header, body = tools.panel("SHAPEFLOW_PT_alignment_settings", default_closed=True)
         header.label(text="Alignment settings")
         if body:
-            body.enabled = settings.snap_enabled
-            body.prop(settings, "grid_snap", text="Use step snapping")
-            body.prop(settings, "geometry_snap")
-            body.prop(settings, "grid_spacing", text="Step size")
-            body.prop(settings, "snap_distance")
-            body.label(text="Hold Shift for temporary bypass", icon='EVENT_SHIFT')
+            body.prop(settings, "grid_snap", text="Incremental")
+            step = body.column()
+            step.enabled = settings.grid_snap
+            step.prop(settings, "grid_spacing", text="Step size")
+            body.prop(settings, "geometry_snap", text="Magnetic")
+            magnetic = body.column()
+            magnetic.enabled = settings.geometry_snap
+            magnetic.prop(settings, "snap_distance", text="Magnetic distance")
+            body.prop(settings, "smart_guides", text="Smart guides")
+            body.label(text="Alt: bypass magnetic/guides", icon='EVENT_ALT')
+            body.label(text="Shift: temporarily free", icon='EVENT_SHIFT')
+            body.label(text="Tab: next snap candidate", icon='EVENT_TAB')
 
         header, body = tools.panel("SHAPEFLOW_PT_numeric_settings", default_closed=True)
         header.label(text="Numeric input")

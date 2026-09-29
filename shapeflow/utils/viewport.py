@@ -57,6 +57,39 @@ def draw_snap_circle(context, point, radius=5.0, fill=(0.1, 0.85, 1.0, 0.22),
     gpu.state.blend_set('NONE')
 
 
+def draw_nearby_snap_candidates(context, cursor, candidates, screen_radius=64.0,
+                                active=None, limit=64):
+    """Draw Move-style markers for snap candidates near the current creation point."""
+    if cursor is None or not candidates:
+        return
+    region = next((item for item in context.area.regions if item.type == 'WINDOW'), context.region)
+    rv3d = context.space_data.region_3d
+    cursor_screen = view3d_utils.location_3d_to_region_2d(region, rv3d, cursor)
+    if cursor_screen is None:
+        return
+    visible = []
+    for candidate in candidates:
+        screen = view3d_utils.location_3d_to_region_2d(region, rv3d, candidate.point)
+        if screen is None:
+            continue
+        distance = (screen - cursor_screen).length
+        if distance <= screen_radius:
+            visible.append((distance, candidate))
+    colors = {
+        'VERTEX': (0.65, 0.88, 1.0, 0.72),
+        'MIDPOINT': (0.3, 0.9, 1.0, 0.72),
+        'FACE_CENTER': (0.78, 0.55, 1.0, 0.72),
+    }
+    for _distance, candidate in sorted(visible, key=lambda item: item[0])[:limit]:
+        if active is not None and (candidate.point - active).length <= 1.0e-7:
+            continue
+        draw_snap_circle(
+            context, candidate.point, radius=3.5,
+            fill=(0.1, 0.75, 1.0, 0.10),
+            outline=colors.get(candidate.kind, (0.65, 0.88, 1.0, 0.62)),
+        )
+
+
 class ViewportPreviewMixin:
     _draw_handle = None
     _hud_handle = None

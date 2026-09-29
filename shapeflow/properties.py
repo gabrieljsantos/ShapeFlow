@@ -31,6 +31,11 @@ class ShapeFlowSettings(bpy.types.PropertyGroup):
         default=True,
         update=_toggle_native_grid,
     )
+    axis_cursor: BoolProperty(
+        name="Axis navigation",
+        description="Move the construction cursor along the projected X, Y, or Z axis; disable for absolute positioning on the drawing plane",
+        default=True,
+    )
     move_constraint: EnumProperty(
         name="Move constraint",
         items=(
@@ -68,11 +73,20 @@ class ShapeFlowSettings(bpy.types.PropertyGroup):
     drawing_plane: EnumProperty(
         name="Drawing Plane",
         items=(
+            ('AUTO', "Auto", "Infer the face plane from the first two different movement axes"),
             ('XY', "XY", "Draw parallel to the XY plane"),
             ('XZ', "XZ", "Draw parallel to the XZ plane"),
             ('YZ', "YZ", "Draw parallel to the YZ plane"),
         ),
         default='XY',
+    )
+    auto_axis_threshold: IntProperty(
+        name="Auto gesture",
+        description="Continuous mouse distance required to accept each axis in Automatic face orientation",
+        default=18,
+        min=4,
+        max=64,
+        subtype='PIXEL',
     )
     snap_enabled: BoolProperty(
         name="Automatic alignment",
@@ -80,13 +94,18 @@ class ShapeFlowSettings(bpy.types.PropertyGroup):
         default=True,
     )
     grid_snap: BoolProperty(
-        name="Use step snapping",
-        description="Quantize drawing and extrusion using ShapeFlow's configured step, independently of Blender's visible grid",
+        name="Incremental",
+        description="Quantize creation, movement, and extrusion using ShapeFlow's configured step",
         default=True,
     )
     geometry_snap: BoolProperty(
-        name="Align to geometry",
-        description="Automatically align with existing vertices, edges, midpoints, and face centers",
+        name="Magnetic",
+        description="Snap directly to nearby vertices, edges, midpoints, and face centers",
+        default=True,
+    )
+    smart_guides: BoolProperty(
+        name="Smart guides",
+        description="Align creation points with nearby geometry even when the pointer is not directly over it",
         default=True,
     )
     grid_spacing: FloatProperty(

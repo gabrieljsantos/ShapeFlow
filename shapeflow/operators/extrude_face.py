@@ -145,7 +145,7 @@ class SHAPEFLOW_OT_extrude_face(ViewportPreviewMixin, bpy.types.Operator):
                     delta = (mouse[0] - self._start_mouse[0], mouse[1] - self._start_mouse[1])
                     raw_distance = (delta[0] * axis.x + delta[1] * axis.y) * 0.01
                     settings = context.scene.shapeflow
-                    use_grid = settings.snap_enabled and settings.grid_snap and not event.shift
+                    use_grid = settings.grid_snap and not event.shift
                     self._snap_bypassed = not use_grid
                     if use_grid:
                         spacing = typed_length_to_blender_units(

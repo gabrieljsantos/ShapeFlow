@@ -13,11 +13,13 @@ from shapeflow.mesh.creation import create_polyline_object, create_profile_objec
 from shapeflow.mesh.extrusion import extrude_face
 from shapeflow.mesh.splitting import split_face_between_edges
 from shapeflow.utils.geometry import (
+    accumulate_axis_intent,
     blender_units_to_typed_length,
     arc_points_three,
     bezier_points,
     crescent_points,
     parse_coordinate_pair,
+    plane_from_axes,
     regular_polygon_points,
     snap_scalar,
     typed_length_to_blender_units,
@@ -154,6 +156,20 @@ class ShapeFlowGeometryTests(unittest.TestCase):
         self.assertEqual(parse_coordinate_pair("10.37;12"), (10.37, 12.0))
         self.assertEqual(parse_coordinate_pair("10,37;12"), (10.37, 12.0))
 
+    def test_automatic_plane_from_two_axes(self):
+        self.assertEqual(plane_from_axes('X', 'Y'), 'XY')
+        self.assertEqual(plane_from_axes('Z', 'X'), 'XZ')
+        self.assertEqual(plane_from_axes('Y', 'Z'), 'YZ')
+        self.assertIsNone(plane_from_axes('X', 'X'))
+
+    def test_automatic_axis_requires_continuous_pixel_gesture(self):
+        candidate, pixels, accepted = accumulate_axis_intent(None, 0, 'X', 7, 18)
+        self.assertEqual((candidate, pixels, accepted), ('X', 7.0, False))
+        candidate, pixels, accepted = accumulate_axis_intent(candidate, pixels, 'X', 11, 18)
+        self.assertTrue(accepted)
+        candidate, pixels, accepted = accumulate_axis_intent(candidate, pixels, 'Z', 2, 18)
+        self.assertEqual((candidate, pixels, accepted), ('Z', 2.0, False))
+
     def test_mode_starts_disabled(self):
         if not hasattr(bpy.types.WindowManager, 'shapeflow_mode'):
             import shapeflow
@@ -161,6 +177,13 @@ class ShapeFlowGeometryTests(unittest.TestCase):
             self.addCleanup(shapeflow.unregister)
         self.assertFalse(bpy.context.window_manager.shapeflow_mode)
         self.assertEqual(bpy.context.window_manager.shapeflow_active_tool, 'NONE')
+        self.assertTrue(bpy.context.scene.shapeflow.axis_cursor)
+        self.assertTrue(bpy.context.scene.shapeflow.grid_snap)
+        self.assertTrue(bpy.context.scene.shapeflow.geometry_snap)
+        self.assertTrue(bpy.context.scene.shapeflow.smart_guides)
+        self.assertEqual(bpy.context.scene.shapeflow.auto_axis_threshold, 18)
+        plane_items = bpy.context.scene.shapeflow.bl_rna.properties['drawing_plane'].enum_items
+        self.assertIn('AUTO', {item.identifier for item in plane_items})
 
 
 if __name__ == '__main__':

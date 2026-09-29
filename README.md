@@ -4,6 +4,8 @@ ShapeFlow 0.9.0 is a Blender 5.2 add-on for direct modelling with persistent cre
 
 Move snapping is screen-space driven: vertices, edge midpoints, arbitrary positions along edges, and face centers become magnetic when their projection is within the configured **Snap distance** in pixels. Their world-space distance does not prevent alignment when they are visually close in the current view.
 
+The construction cursor uses incremental movement by default: mouse direction selects the projected world X, Y, or Z axis and advances the cursor along it. Disable **I Increment** to position the cursor directly on the selected drawing plane.
+
 Before a Move drag starts, available points on the hovered face appear as soft circular markers. The active point uses an emphasized yellow circle, its related edge changes to blue, and the snapped destination uses an emphasized green circle.
 
 Overlapping screen-space candidates use a fixed priority: vertex, edge midpoint, edge, face center, then free face point. A corner therefore wins over a line even when the projected line is mathematically closer to the cursor.
@@ -35,9 +37,11 @@ Use **Exit ShapeFlow Mode** to return full viewport control to Blender. Loading 
 ## Tools
 
 - **Draw Rectangle** creates a new object containing one quad on the selected world plane.
+- **Automatic face orientation** infers XY, XZ, or YZ from the first two different movement axes after the origin click. The inferred plane remains locked until the current shape is confirmed or cancelled.
 - **Arc**, **Bezier**, and **Crescent** create three-point circular arcs, cubic curves with explicit handles, and closed crescent profiles.
 - **Move** drags the complete object by default. Hold **Ctrl when starting the drag** to move only the hovered vertex, edge, or face; geometric targets remain magnetic in screen space.
 - **Extrude** enters a tool mode and highlights the face under the pointer. With **Copy** disabled, a face on a closed solid is pushed or pulled by moving its existing boundary, so no internal source face remains. With **Copy** enabled, ShapeFlow preserves the source and extrudes a duplicate with side walls. A lone profile still becomes a solid in either mode. Typed values use the unit selected in the panel.
+- **Incremental** quantizes creation, Move, and Extrude using the configured Step size. **Magnetic** overrides that step near direct geometry targets, while **Smart guides** controls remote alignment with neighboring geometry. Hold **Alt** to bypass Magnetic and guides while preserving the increment, or **Shift** for temporary free movement. Press **Tab** to cycle overlapping snap targets.
 - Split has been removed from the active palette while the future line-based workflow is designed.
 
 ## Current limitations
@@ -46,7 +50,6 @@ Use **Exit ShapeFlow Mode** to return full viewport control to Blender. Loading 
 - Split requires two different boundary edges on the same face. It does not yet create enclosed internal cuts.
 - Curves are created as native mesh polylines; editable Blender Curve objects and persistent Bézier-handle widgets are planned refinements.
 - Drag distance is screen-derived. Typed values use the millimeter, centimeter, or meter unit selected in the ShapeFlow panel and are converted to Blender units using the scene scale.
-- The Snap switch reserves the UI and data model for richer snapping; boundary snapping is always enforced by Split in this release.
 - Picking uses the evaluated viewport mesh. Objects with topology-changing modifiers can produce face-index ambiguity; apply or temporarily disable those modifiers before editing with ShapeFlow.
 
 ## Native modifier compatibility
