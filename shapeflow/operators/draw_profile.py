@@ -13,8 +13,9 @@ from ..utils.geometry import (
     rectangle_corners,
     typed_length_to_blender_units,
     unit_suffix,
+    settings_plane,
 )
-from ..utils.picking import ray_plane, viewport_mouse
+from ..utils.picking import capture_hovered_workplane, ray_plane, viewport_mouse
 from ..utils.snapping import (
     collect_plane_geometry,
     collect_scene_snap_geometry,
@@ -49,7 +50,7 @@ class SHAPEFLOW_OT_draw_rectangle(ViewportPreviewMixin, bpy.types.Operator):
         )
 
     def _effective_plane(self, settings):
-        return self._auto_plane if settings.drawing_plane == 'AUTO' else settings.drawing_plane
+        return settings_plane(settings, self._auto_plane)
 
     @classmethod
     def poll(cls, context):
@@ -93,7 +94,7 @@ class SHAPEFLOW_OT_draw_rectangle(ViewportPreviewMixin, bpy.types.Operator):
     def _set_status(self, context):
         plane = context.scene.shapeflow.drawing_plane
         effective = self._effective_plane(context.scene.shapeflow)
-        labels = {'XY': 'X;Y', 'XZ': 'X;Z', 'YZ': 'Y;Z'}.get(effective, 'two axes')
+        labels = {'XY': 'X;Y', 'XZ': 'X;Z', 'YZ': 'Y;Z'}.get(effective, 'local U;V' if plane == 'FACE' else 'two axes') if isinstance(effective, str) else 'local U;V'
         stage = "origin" if self._start is None else "size"
         auto = f" • Auto {effective or 'waiting'}" if plane == 'AUTO' else ""
         context.workspace.status_text_set(
@@ -114,6 +115,7 @@ class SHAPEFLOW_OT_draw_rectangle(ViewportPreviewMixin, bpy.types.Operator):
                 settings, self._scene_candidates, self._scene_edges,
                 bypass=event.shift, magnetic_bypass=event.alt, skip=self._snap_skip,
                 raw_point=self._travel_raw, snap_origin=self._travel_origin,
+                allowed_axes={'X', 'Y'} if settings.drawing_plane == 'FACE' else None,
             )
             self._last_mouse = Vector(viewport[1])
             self._travel_raw = raw
@@ -179,6 +181,9 @@ class SHAPEFLOW_OT_draw_rectangle(ViewportPreviewMixin, bpy.types.Operator):
         first = typed_length_to_blender_units(first, settings.length_unit, context.scene.unit_settings.scale_length)
         second = typed_length_to_blender_units(second, settings.length_unit, context.scene.unit_settings.scale_length)
         if self._start is None:
+            if settings.drawing_plane == 'FACE':
+                axis_u, axis_v, _normal = plane_axes(plane)
+                return Vector(settings.drawing_origin) + axis_u * first + axis_v * second
             return point_from_plane_coordinates(first, second, plane)
         axis_u, axis_v, _normal = plane_axes(plane)
         if settings.creation_origin == 'CENTER':
@@ -198,6 +203,12 @@ class SHAPEFLOW_OT_draw_rectangle(ViewportPreviewMixin, bpy.types.Operator):
             self._reset(context)
             self._set_status(context)
             context.area.tag_redraw()
+            return {'RUNNING_MODAL'}
+        if event.type == 'W' and event.value == 'PRESS':
+            if capture_hovered_workplane(context, event):
+                self._reset(context); self._set_status(context); context.area.tag_redraw()
+            else:
+                self.report({'WARNING'}, "ShapeFlow: hover a mesh face before pressing W")
             return {'RUNNING_MODAL'}
         if event.type == 'TAB' and event.value == 'PRESS':
             self._snap_skip += 1

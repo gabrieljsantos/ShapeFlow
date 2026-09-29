@@ -10,6 +10,7 @@ from .geometry import (
     point_from_plane_coordinates,
     snap_scalar,
     typed_length_to_blender_units,
+    settings_plane,
 )
 
 
@@ -184,7 +185,8 @@ def travel_3d_cursor(context, region, mouse, previous_mouse, point, settings, ca
         rv3d = context.space_data.region_3d
         ray_origin = view3d_utils.region_2d_to_origin_3d(region, rv3d, mouse)
         ray_direction = view3d_utils.region_2d_to_vector_3d(region, rv3d, mouse)
-        _axis_u, _axis_v, normal = plane_axes(settings.drawing_plane)
+        active_plane = settings_plane(settings)
+        _axis_u, _axis_v, normal = plane_axes(active_plane)
         denominator = ray_direction.dot(normal)
         if abs(denominator) < 1.0e-8:
             current = Vector(point)
@@ -196,10 +198,10 @@ def travel_3d_cursor(context, region, mouse, previous_mouse, point, settings, ca
                 settings.grid_spacing, settings.length_unit,
                 context.scene.unit_settings.scale_length,
             )
-            u, v = plane_coordinates(result, settings.drawing_plane)
+            u, v = plane_coordinates(result, active_plane)
             plane_offset = normal * Vector(point).dot(normal)
             result = point_from_plane_coordinates(
-                snap_scalar(u, spacing), snap_scalar(v, spacing), settings.drawing_plane,
+                snap_scalar(u, spacing), snap_scalar(v, spacing), active_plane,
             ) + plane_offset
         return result, "PLANE", None, result.copy()
 
@@ -218,9 +220,12 @@ def travel_3d_cursor(context, region, mouse, previous_mouse, point, settings, ca
         raw = Vector(raw_point) if raw_point is not None else current.copy()
         return current, "CURSOR", None, raw
     options = []
-    for name, axis in (
-        ('X', Vector((1, 0, 0))), ('Y', Vector((0, 1, 0))), ('Z', Vector((0, 0, 1))),
-    ):
+    navigation_axes = (
+        tuple(zip(('X', 'Y', 'Z'), plane_axes(settings_plane(settings))))
+        if settings.drawing_plane == 'FACE'
+        else (('X', Vector((1, 0, 0))), ('Y', Vector((0, 1, 0))), ('Z', Vector((0, 0, 1))))
+    )
+    for name, axis in navigation_axes:
         if allowed_axes is not None and name not in allowed_axes:
             continue
         axis_screen = view3d_utils.location_3d_to_region_2d(region, rv3d, Vector(point) + axis)

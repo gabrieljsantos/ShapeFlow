@@ -9,7 +9,10 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if ROOT not in sys.path:
     sys.path.insert(0, ROOT)
 
-from shapeflow.mesh.creation import create_polyline_object, create_profile_object, create_rectangle_object
+from shapeflow.mesh.creation import (
+    create_box_object, create_polyline_object, create_profile_object,
+    create_rectangle_object,
+)
 from shapeflow.mesh.extrusion import extrude_face
 from shapeflow.mesh.splitting import split_face_between_edges
 from shapeflow.utils.geometry import (
@@ -42,6 +45,16 @@ class ShapeFlowGeometryTests(unittest.TestCase):
         obj = self.rectangle()
         self.assertEqual(len(obj.data.vertices), 4)
         self.assertEqual(len(obj.data.polygons), 1)
+
+    def test_create_three_point_box_geometry(self):
+        obj = create_box_object(
+            bpy.context,
+            [(0, 0, 0), (2, 0, 0), (2, 3, 0), (0, 3, 0)],
+            (0, 0, 4),
+        )
+        self.assertEqual(len(obj.data.vertices), 8)
+        self.assertEqual(len(obj.data.edges), 12)
+        self.assertEqual(len(obj.data.polygons), 6)
 
     def test_extrude_face(self):
         obj = self.rectangle()

@@ -19,7 +19,13 @@ def _is_movable_boundary_face(face):
     return True
 
 
-def extrude_face(obj, face_index, distance, copy=False):
+def _coincident_face(first, second, tolerance=1.0e-5):
+    if len(first.verts) != len(second.verts) or abs(first.normal.dot(second.normal)) < 1.0 - tolerance:
+        return False
+    return all(any((vertex.co - other.co).length <= tolerance for other in second.verts) for vertex in first.verts)
+
+
+def extrude_face(obj, face_index, distance, copy=False, fuse=False):
     """Push/pull one face along its local normal.
 
     With Copy disabled, a face on an existing closed solid is pushed or pulled
@@ -38,8 +44,9 @@ def extrude_face(obj, face_index, distance, copy=False):
         if not 0 <= face_index < len(bm.faces):
             raise ValueError("Face no longer exists")
         source = bm.faces[face_index]
+        original_faces = set(bm.faces)
         normal = source.normal.normalized().copy()
-        if not copy and _is_movable_boundary_face(source):
+        if not fuse and not copy and _is_movable_boundary_face(source):
             bmesh.ops.translate(bm, verts=list(source.verts), vec=normal * distance)
             for face in bm.faces:
                 face.select = False
@@ -74,6 +81,19 @@ def extrude_face(obj, face_index, distance, copy=False):
         if not new_faces:
             raise ValueError("Blender could not identify the new extrusion face")
         new_face = new_faces[0]
+        if fuse:
+            contact = next(
+                (face for face in original_faces if face.is_valid and face != source and _coincident_face(new_face, face)),
+                None,
+            )
+            if contact is not None:
+                weld_verts = list({*new_face.verts, *contact.verts})
+                bm.faces.remove(new_face)
+                bm.faces.remove(contact)
+                bmesh.ops.remove_doubles(bm, verts=weld_verts, dist=1.0e-5)
+                bm.normal_update(); bm.faces.index_update()
+                bm.to_mesh(obj.data); obj.data.update()
+                return -1
         for face in bm.faces:
             face.select = False
         new_face.select = True

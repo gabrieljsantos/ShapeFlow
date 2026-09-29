@@ -45,6 +45,39 @@ def pick_mesh_face(context, mouse):
     return obj, face_index, location, normal
 
 
+def set_workplane_from_face(context, obj, face_index, hit=None):
+    """Persist a stable right-handed local basis from a mesh polygon."""
+    polygon = obj.data.polygons[face_index]
+    matrix = obj.matrix_world
+    points = [matrix @ obj.data.vertices[index].co for index in polygon.vertices]
+    if len(points) < 3:
+        return False
+    edges = [(points[(index + 1) % len(points)] - point, point) for index, point in enumerate(points)]
+    edge, _edge_origin = max(edges, key=lambda item: item[0].length_squared)
+    normal = (matrix.to_3x3().inverted().transposed() @ polygon.normal).normalized()
+    axis_u = (edge - normal * edge.dot(normal)).normalized()
+    if axis_u.length_squared < 1.0e-12:
+        return False
+    axis_v = normal.cross(axis_u).normalized()
+    settings = context.scene.shapeflow
+    settings.workplane_u = axis_u
+    settings.workplane_v = axis_v
+    settings.workplane_normal = normal
+    settings.workplane_object = obj.name
+    settings.workplane_face_index = face_index
+    settings.drawing_origin = hit if hit is not None else matrix @ polygon.center
+    settings.drawing_plane = 'FACE'
+    return True
+
+
+def capture_hovered_workplane(context, event):
+    viewport = viewport_mouse(context, event)
+    if viewport is None:
+        return False
+    picked = pick_mesh_face(context, viewport[1])
+    return bool(picked and set_workplane_from_face(context, picked[0], picked[1], picked[2]))
+
+
 def nearest_face_boundary(obj, face_index, world_point):
     polygon = obj.data.polygons[face_index]
     inverse = obj.matrix_world.inverted()

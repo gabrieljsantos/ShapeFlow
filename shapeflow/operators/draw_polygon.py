@@ -4,9 +4,9 @@ from mathutils import Vector
 from ..mesh.creation import create_profile_object
 from ..utils.geometry import (
     accumulate_axis_intent, axis_name, plane_axes, plane_from_axes,
-    regular_polygon_points,
+    regular_polygon_points, settings_plane,
 )
-from ..utils.picking import ray_plane, viewport_mouse
+from ..utils.picking import capture_hovered_workplane, ray_plane, viewport_mouse
 from ..utils.snapping import collect_plane_geometry, collect_scene_snap_geometry, snap_draw_point, travel_3d_cursor
 from ..utils.viewport import (
     ViewportPreviewMixin, draw_nearby_snap_candidates, draw_polyline, draw_snap_circle,
@@ -42,7 +42,7 @@ class SHAPEFLOW_OT_draw_polygon(ViewportPreviewMixin, bpy.types.Operator):
     _current = None
 
     def _effective_plane(self, settings):
-        return self._auto_plane if settings.drawing_plane == 'AUTO' else settings.drawing_plane
+        return settings_plane(settings, self._auto_plane)
 
     @classmethod
     def poll(cls, context):
@@ -100,6 +100,7 @@ class SHAPEFLOW_OT_draw_polygon(ViewportPreviewMixin, bpy.types.Operator):
                 settings, self._scene_candidates, self._scene_edges,
                 bypass=event.shift, magnetic_bypass=event.alt, skip=self._snap_skip,
                 raw_point=self._travel_raw, snap_origin=self._travel_origin,
+                allowed_axes={'X', 'Y'} if settings.drawing_plane == 'FACE' else None,
             )
             self._last_mouse = Vector(viewport[1])
             self._travel_raw = raw
@@ -162,6 +163,12 @@ class SHAPEFLOW_OT_draw_polygon(ViewportPreviewMixin, bpy.types.Operator):
             return {'CANCELLED'}
         if event.type == 'RIGHTMOUSE':
             self._reset(context)
+            return {'RUNNING_MODAL'}
+        if event.type == 'W' and event.value == 'PRESS':
+            if capture_hovered_workplane(context, event):
+                self._reset(context); self._set_status(context); context.area.tag_redraw()
+            else:
+                self.report({'WARNING'}, "ShapeFlow: hover a mesh face before pressing W")
             return {'RUNNING_MODAL'}
         if event.type == 'TAB' and event.value == 'PRESS':
             self._snap_skip += 1

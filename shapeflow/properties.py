@@ -50,6 +50,14 @@ class ShapeFlowSettings(bpy.types.PropertyGroup):
         description="Duplicate before transforming; future Move and Rotate tools will use the same setting",
         default=False,
     )
+    extrusion_mode: EnumProperty(
+        name="Extrusion mode",
+        items=(
+            ('SIMPLE', "Simple", "Extrude without resolving contact or coincident faces"),
+            ('FUSE', "Fuse", "Remove matching contact faces and weld the resulting solid"),
+        ),
+        default='SIMPLE',
+    )
     polygon_sides: IntProperty(
         name="Sides",
         description="Number of sides used by the Polygon tool",
@@ -70,6 +78,16 @@ class ShapeFlowSettings(bpy.types.PropertyGroup):
         description="Keep equal dimensions while creating compatible shapes",
         default=True,
     )
+    creation_output: EnumProperty(
+        name="Creation output",
+        items=(
+            ('SEPARATE', "Separate", "Create an independent mesh object"),
+            ('EMBEDDED', "Embedded", "Imprint supported lines and curves into the captured receiver face"),
+        ),
+        default='SEPARATE',
+    )
+    workplane_object: StringProperty(default="", options={'HIDDEN'})
+    workplane_face_index: IntProperty(default=-1, options={'HIDDEN'})
     drawing_plane: EnumProperty(
         name="Drawing Plane",
         items=(
@@ -77,9 +95,13 @@ class ShapeFlowSettings(bpy.types.PropertyGroup):
             ('XY', "XY", "Draw parallel to the XY plane"),
             ('XZ', "XZ", "Draw parallel to the XZ plane"),
             ('YZ', "YZ", "Draw parallel to the YZ plane"),
+            ('FACE', "Face", "Draw on a local workplane captured from a mesh face"),
         ),
         default='XY',
     )
+    workplane_u: FloatVectorProperty(size=3, subtype='DIRECTION', default=(1.0, 0.0, 0.0), options={'HIDDEN'})
+    workplane_v: FloatVectorProperty(size=3, subtype='DIRECTION', default=(0.0, 1.0, 0.0), options={'HIDDEN'})
+    workplane_normal: FloatVectorProperty(size=3, subtype='DIRECTION', default=(0.0, 0.0, 1.0), options={'HIDDEN'})
     auto_axis_threshold: IntProperty(
         name="Auto gesture",
         description="Continuous mouse distance required to accept each axis in Automatic face orientation",
@@ -175,10 +197,13 @@ def register_properties():
         items=(
             ('NONE', "None", "No ShapeFlow tool is active"),
             ('RECTANGLE', "Rectangle", "Create rectangles continuously"),
+            ('RECTANGLE_2P', "2P Rectangle", "Create a rectangle as width then height"),
+            ('BOX_3P', "3P Box", "Create a box as width, height, then depth"),
             ('POLYGON', "Polygon", "Create regular polygons continuously"),
             ('ARC', "Arc", "Create three-point arcs continuously"),
             ('BEZIER', "Bezier", "Create cubic Bezier curves continuously"),
             ('CRESCENT', "Crescent", "Create crescent faces continuously"),
+            ('LINE', "Line", "Create straight lines continuously"),
             ('EXTRUDE', "Extrude", "Push or pull faces continuously"),
             ('MOVE', "Move", "Move whole objects with snapping"),
         ),

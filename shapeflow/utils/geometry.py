@@ -52,11 +52,27 @@ def parse_coordinate_pair(text):
 
 
 def plane_axes(plane):
+    if not isinstance(plane, str):
+        axis_u, axis_v, normal = plane
+        return Vector(axis_u).normalized(), Vector(axis_v).normalized(), Vector(normal).normalized()
     if plane == 'XZ':
         return Vector((1, 0, 0)), Vector((0, 0, 1)), Vector((0, 1, 0))
     if plane == 'YZ':
         return Vector((0, 1, 0)), Vector((0, 0, 1)), Vector((1, 0, 0))
     return Vector((1, 0, 0)), Vector((0, 1, 0)), Vector((0, 0, 1))
+
+
+def settings_plane(settings, auto_plane=None):
+    """Resolve a configured world, automatic, or captured face workplane."""
+    if settings.drawing_plane == 'AUTO':
+        return auto_plane
+    if settings.drawing_plane == 'FACE':
+        return (
+            Vector(settings.workplane_u),
+            Vector(settings.workplane_v),
+            Vector(settings.workplane_normal),
+        )
+    return settings.drawing_plane
 
 
 def axis_name(axis):

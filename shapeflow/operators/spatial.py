@@ -3,7 +3,7 @@ from mathutils import Vector
 from bpy_extras import view3d_utils
 
 from ..utils.geometry import snap_scalar, typed_length_to_blender_units
-from ..utils.picking import pick_mesh_face, ray_plane, viewport_mouse
+from ..utils.picking import capture_hovered_workplane, pick_mesh_face, ray_plane, viewport_mouse
 from ..utils.snapping import (
     collect_object_snap_geometry,
     collect_scene_snap_geometry,
@@ -18,6 +18,7 @@ SOFT_POINT = (0.65, 0.88, 1.0, 0.62)
 ACTIVE_POINT = (1.0, 0.82, 0.16, 1.0)
 TARGET_POINT = (0.2, 1.0, 0.42, 1.0)
 RELATED_EDGE = (0.18, 0.62, 1.0, 0.95)
+LOCKED_GUIDE = (1.0, 0.34, 0.08, 1.0)
 
 
 def _draw_related_highlight(kind, highlight, color, offset=None):
@@ -75,6 +76,21 @@ def _axis_drag(context, region, origin, mouse_start, mouse_now, allowed='XYZ', b
     return axis * distance, axis
 
 
+def _infinite_guide_point(context, region, mouse, edge):
+    """Map a viewport mouse position to the infinite 3D line through an edge."""
+    rv3d = context.space_data.region_3d
+    a, b = edge
+    screen_a = view3d_utils.location_3d_to_region_2d(region, rv3d, a)
+    screen_b = view3d_utils.location_3d_to_region_2d(region, rv3d, b)
+    if screen_a is None or screen_b is None:
+        return None
+    screen_line = screen_b - screen_a
+    if screen_line.length_squared < 1.0e-10:
+        return None
+    factor = (Vector(mouse) - screen_a).dot(screen_line) / screen_line.length_squared
+    return a.lerp(b, factor)
+
+
 class _SpatialToolMixin(ViewportPreviewMixin):
     def _outside_viewport(self, context, event):
         viewport = viewport_mouse(context, event)
@@ -99,10 +115,11 @@ class SHAPEFLOW_OT_move_object(_SpatialToolMixin, bpy.types.Operator):
         self._hover_face_index = None
         self._hover_points = (); self._nearby_targets = ()
         self._snap_skip = 0
+        self._guide_edge = None; self._guide_origin = None
         self._partial = False; self._partial_vertices = (); self._partial_start = {}
         self._current_offset = Vector()
         self.add_preview(context); context.window_manager.modal_handler_add(self)
-        context.workspace.status_text_set("ShapeFlow Move: drag an object • Alt bypasses magnetic • Shift free • Esc stops")
+        context.workspace.status_text_set("ShapeFlow Move: drag an object • F fixes a snapped edge as guide • Esc stops")
         return {'RUNNING_MODAL'}
 
     def _update_hover(self, context, region, mouse):
@@ -145,6 +162,25 @@ class SHAPEFLOW_OT_move_object(_SpatialToolMixin, bpy.types.Operator):
         if event.type == 'TAB' and event.value == 'PRESS' and self._dragging:
             self._snap_skip += 1
             return {'RUNNING_MODAL'}
+        if event.type == 'W' and event.value == 'PRESS' and not self._dragging:
+            if capture_hovered_workplane(context, event):
+                context.workspace.status_text_set("ShapeFlow Move: face workplane captured • drag an object or choose a creation tool")
+                context.area.tag_redraw()
+            else:
+                self.report({'WARNING'}, "ShapeFlow: hover a mesh face before pressing W")
+            return {'RUNNING_MODAL'}
+        if event.type in {'F', 'LEFT_CTRL', 'RIGHT_CTRL'} and event.value == 'PRESS' and self._dragging:
+            if self._guide_edge is not None:
+                self._guide_edge = None; self._guide_origin = None
+                context.workspace.status_text_set("ShapeFlow Move: guide released • snap to an edge and press F to fix it")
+            elif self._snap_kind in {'EDGE', 'MIDPOINT'} and self._snap_highlight and len(self._snap_highlight) == 2:
+                self._guide_edge = tuple(point.copy() for point in self._snap_highlight)
+                self._guide_origin = self._snap_target.copy()
+                context.workspace.status_text_set("ShapeFlow Move: infinite edge guide fixed • F/Ctrl releases • release mouse to confirm")
+            else:
+                context.workspace.status_text_set("ShapeFlow Move: snap to an edge or midpoint before fixing a guide")
+            context.area.tag_redraw()
+            return {'RUNNING_MODAL'}
         if event.type == 'MOUSEMOVE' and not self._dragging:
             self._update_hover(context, region, mouse)
             return {'RUNNING_MODAL'}
@@ -178,6 +214,7 @@ class SHAPEFLOW_OT_move_object(_SpatialToolMixin, bpy.types.Operator):
             self._mouse_start = mouse
             self._candidates, self._edges = collect_scene_snap_geometry(context, exclude=obj)
             self._snap_target = None; self._snap_kind = None; self._snap_highlight = None; self._dragging = True
+            self._guide_edge = None; self._guide_origin = None
             self._snap_skip = 0
             self._nearby_targets = ()
             self._hover_object = None
@@ -187,7 +224,7 @@ class SHAPEFLOW_OT_move_object(_SpatialToolMixin, bpy.types.Operator):
             )
         elif event.type == 'MOUSEMOVE' and self._dragging:
             settings = context.scene.shapeflow
-            target = nearest_screen_geometry(
+            target = None if self._guide_edge is not None else nearest_screen_geometry(
                 context, region, mouse, self._candidates, self._edges, settings.snap_distance,
                 skip=self._snap_skip,
             )
@@ -200,7 +237,19 @@ class SHAPEFLOW_OT_move_object(_SpatialToolMixin, bpy.types.Operator):
                 and (screen := view3d_utils.location_3d_to_region_2d(region, rv3d, candidate.point)) is not None
                 and (screen - Vector(mouse)).length <= nearby_radius
             )
-            if target and settings.geometry_snap and not event.alt and not event.shift:
+            if self._guide_edge is not None:
+                guide_point = _infinite_guide_point(context, region, mouse, self._guide_edge)
+                if guide_point is None:
+                    guide_point = self._guide_origin.copy()
+                direction = self._guide_edge[1] - self._guide_edge[0]
+                if settings.grid_snap and not event.shift and direction.length_squared > 1.0e-12:
+                    direction.normalize()
+                    distance = (guide_point - self._guide_origin).dot(direction)
+                    guide_point = self._guide_origin + direction * snap_scalar(distance, _step(context))
+                offset = guide_point - self._anchor
+                self._snap_target = guide_point.copy(); self._snap_kind = 'GUIDE'
+                self._snap_highlight = self._guide_edge
+            elif target and settings.geometry_snap and not event.alt and not event.shift:
                 offset = target.point - self._anchor
                 changed_target = self._snap_target is None or (self._snap_target - target.point).length > 1.0e-7
                 self._snap_target = target.point.copy(); self._snap_kind = target.kind
@@ -236,9 +285,14 @@ class SHAPEFLOW_OT_move_object(_SpatialToolMixin, bpy.types.Operator):
                 self._object.location = self._start_location + offset
             context.view_layer.update()
             if self._snap_kind:
-                context.workspace.status_text_set(
-                    f"ShapeFlow Move: {self._anchor_kind.lower()} → {self._snap_kind.lower()} • release to confirm"
-                )
+                if self._guide_edge is not None:
+                    context.workspace.status_text_set(
+                        "ShapeFlow Move: following infinite edge guide • F/Ctrl releases • release mouse to confirm"
+                    )
+                else:
+                    context.workspace.status_text_set(
+                        f"ShapeFlow Move: {self._anchor_kind.lower()} → {self._snap_kind.lower()} • F fixes edge • release to confirm"
+                    )
         elif event.type == 'LEFTMOUSE' and event.value == 'RELEASE' and self._dragging:
             self._dragging = False; self._snap_target = None; self._snap_highlight = None
             self._object = None; self._anchor = None; self._anchor_highlight = None
@@ -246,6 +300,7 @@ class SHAPEFLOW_OT_move_object(_SpatialToolMixin, bpy.types.Operator):
             self._current_offset = Vector()
             self._nearby_targets = ()
             self._snap_skip = 0
+            self._guide_edge = None; self._guide_origin = None
             bpy.ops.ed.undo_push(message="ShapeFlow Move Object")
             context.workspace.status_text_set("ShapeFlow Move: drag another object • Esc stops")
         return {'RUNNING_MODAL'}
@@ -264,6 +319,7 @@ class SHAPEFLOW_OT_move_object(_SpatialToolMixin, bpy.types.Operator):
         self._snap_target = None; self._snap_highlight = None
         self._nearby_targets = ()
         self._snap_skip = 0
+        self._guide_edge = None; self._guide_origin = None
         self._partial = False; self._partial_vertices = (); self._partial_start = {}
         self._current_offset = Vector()
 
@@ -311,9 +367,19 @@ class SHAPEFLOW_OT_move_object(_SpatialToolMixin, bpy.types.Operator):
             if self._snap_target is None or (point - self._snap_target).length > 1.0e-7:
                 draw_snap_circle(context, point, radius=3.5, fill=(0.1, 0.85, 1.0, 0.10), outline=SOFT_POINT)
         if self._snap_target is not None:
-            _draw_related_highlight(self._snap_kind, self._snap_highlight, TARGET_POINT)
+            if self._guide_edge is not None:
+                direction = self._guide_edge[1] - self._guide_edge[0]
+                if direction.length_squared > 1.0e-12:
+                    direction.normalize()
+                    extent = max((self._guide_edge[1] - self._guide_edge[0]).length * 1000.0, 1000.0)
+                    draw_polyline(
+                        [self._guide_origin - direction * extent, self._guide_origin + direction * extent],
+                        color=LOCKED_GUIDE, width=3.0,
+                    )
+            else:
+                _draw_related_highlight(self._snap_kind, self._snap_highlight, TARGET_POINT)
             draw_snap_circle(context, self._snap_target, radius=6.5, fill=(0.12, 0.9, 0.3, 0.72),
-                             outline=TARGET_POINT, width=2.5)
+                             outline=LOCKED_GUIDE if self._guide_edge is not None else TARGET_POINT, width=2.5)
 
     def _finish(self, context):
         self.remove_preview(context); context.workspace.status_text_set(None)

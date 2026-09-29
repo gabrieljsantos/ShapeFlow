@@ -37,9 +37,14 @@ Use **Exit ShapeFlow Mode** to return full viewport control to Blender. Loading 
 ## Tools
 
 - **Draw Rectangle** creates a new object containing one quad on the selected world plane.
+- **2P Rectangle** creates an orthogonal face in stages: origin, width line, then height.
+- **3P Box** extends the same staged workflow with a final orthogonal depth, producing a closed native mesh box.
 - **Automatic face orientation** infers XY, XZ, or YZ from the first two different movement axes after the origin click. The inferred plane remains locked until the current shape is confirmed or cancelled.
+- **Face workplane** captures an inclined mesh face as a persistent local U/V/N coordinate system. Hover a face and press **W**, or use **Capture hovered face** in the Face orientation panel. Creation and incremental movement then follow the captured face; choose Auto, XY, XZ, or YZ to return to a world orientation.
+- **Creation output** chooses between **Separate** mesh objects and **Embedded** paths. In Embedded mode the captured receiver face is outlined in orange; Line, Arc, and Bezier paths that begin and end on different receiver edges split that face into independently extrudable regions. Capture the desired resulting face again with **W** before the next embedded operation.
 - **Arc**, **Bezier**, and **Crescent** create three-point circular arcs, cubic curves with explicit handles, and closed crescent profiles.
 - **Move** drags the complete object by default. Hold **Ctrl when starting the drag** to move only the hovered vertex, edge, or face; geometric targets remain magnetic in screen space.
+- During a Move drag, snap the grabbed point to an edge or midpoint and press **F** to fix that edge as an infinite movement guide. The object can travel beyond either endpoint. Press **F** again to release it; **Ctrl during the drag** is an alternate toggle, while Ctrl at drag start retains its partial-geometry meaning. Curved paths currently guide through their individual straight mesh segments; tangent-following rotation is planned.
 - **Extrude** enters a tool mode and highlights the face under the pointer. With **Copy** disabled, a face on a closed solid is pushed or pulled by moving its existing boundary, so no internal source face remains. With **Copy** enabled, ShapeFlow preserves the source and extrudes a duplicate with side walls. A lone profile still becomes a solid in either mode. Typed values use the unit selected in the panel.
 - **Incremental** quantizes creation, Move, and Extrude using the configured Step size. **Magnetic** overrides that step near direct geometry targets, while **Smart guides** controls remote alignment with neighboring geometry. Hold **Alt** to bypass Magnetic and guides while preserving the increment, or **Shift** for temporary free movement. Press **Tab** to cycle overlapping snap targets.
 - Split has been removed from the active palette while the future line-based workflow is designed.

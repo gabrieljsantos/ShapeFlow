@@ -8,7 +8,7 @@ from ..utils.geometry import (
     typed_length_to_blender_units,
     unit_suffix,
 )
-from ..utils.picking import pick_mesh_face, viewport_mouse
+from ..utils.picking import capture_hovered_workplane, pick_mesh_face, viewport_mouse
 from ..utils.viewport import ViewportPreviewMixin, draw_polyline
 
 
@@ -61,8 +61,9 @@ class SHAPEFLOW_OT_extrude_face(ViewportPreviewMixin, bpy.types.Operator):
                 )
                 value = f"{display_value:.4g} {suffix}"
             snap_state = "free" if self._snap_bypassed else "step"
+            mode = "fuse on contact" if settings.extrusion_mode == 'FUSE' else "simple"
             context.workspace.status_text_set(
-                f"ShapeFlow Extrude: drag [{value}, {snap_state}] • Shift bypasses step • type exact value • release/Enter confirms"
+                f"ShapeFlow Extrude: drag [{value}, {snap_state}, {mode}] • Shift bypasses step • type exact value • release/Enter confirms"
             )
         else:
             context.workspace.status_text_set("ShapeFlow Extrude: hover a face, then click and drag • Esc cancels")
@@ -102,7 +103,11 @@ class SHAPEFLOW_OT_extrude_face(ViewportPreviewMixin, bpy.types.Operator):
     def _confirm(self, context):
         obj, face_index, _points = self._picked
         try:
-            extrude_face(obj, face_index, self._distance, copy=context.scene.shapeflow.copy_mode)
+            settings = context.scene.shapeflow
+            extrude_face(
+                obj, face_index, self._distance,
+                copy=settings.copy_mode, fuse=settings.extrusion_mode == 'FUSE',
+            )
         except ValueError as error:
             self.report({'WARNING'}, f"ShapeFlow: {error}")
             return False
@@ -124,6 +129,12 @@ class SHAPEFLOW_OT_extrude_face(ViewportPreviewMixin, bpy.types.Operator):
             self._reset()
             self._set_status(context)
             context.area.tag_redraw()
+            return {'RUNNING_MODAL'}
+        if event.type == 'W' and event.value == 'PRESS' and not self._dragging:
+            if capture_hovered_workplane(context, event):
+                self._set_status(context); context.area.tag_redraw()
+            else:
+                self.report({'WARNING'}, "ShapeFlow: hover a mesh face before pressing W")
             return {'RUNNING_MODAL'}
         viewport = viewport_mouse(context, event)
         if viewport and not (0 <= viewport[1][0] <= viewport[0].width and 0 <= viewport[1][1] <= viewport[0].height):

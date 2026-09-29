@@ -1,20 +1,24 @@
 from .draw_profile import SHAPEFLOW_OT_draw_rectangle
 from .draw_polygon import SHAPEFLOW_OT_draw_polygon, SHAPEFLOW_OT_polygon_settings
 from .draw_advanced import SHAPEFLOW_OT_draw_advanced
+from .draw_dimensional import SHAPEFLOW_OT_draw_dimensional
 from .extrude_face import SHAPEFLOW_OT_extrude_face
 from .workspace import SHAPEFLOW_OT_workspace
 from .mode import SHAPEFLOW_OT_activate_tool, SHAPEFLOW_OT_toggle_mode, SHAPEFLOW_OT_tool_placeholder
 from .spatial import SHAPEFLOW_OT_move_object
+from .workplane import SHAPEFLOW_OT_pick_workplane
 
 CLASSES = (
     SHAPEFLOW_OT_draw_rectangle,
     SHAPEFLOW_OT_polygon_settings,
     SHAPEFLOW_OT_draw_polygon,
     SHAPEFLOW_OT_draw_advanced,
+    SHAPEFLOW_OT_draw_dimensional,
     SHAPEFLOW_OT_extrude_face,
     SHAPEFLOW_OT_workspace,
     SHAPEFLOW_OT_toggle_mode,
     SHAPEFLOW_OT_activate_tool,
     SHAPEFLOW_OT_tool_placeholder,
     SHAPEFLOW_OT_move_object,
+    SHAPEFLOW_OT_pick_workplane,
 )

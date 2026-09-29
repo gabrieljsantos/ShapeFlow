@@ -2,11 +2,12 @@ import bpy
 from mathutils import Vector
 
 from ..mesh.creation import create_polyline_object, create_profile_object
+from ..mesh.splitting import split_face_with_path
 from ..utils.geometry import (
     accumulate_axis_intent, arc_points_three, axis_name, bezier_points, crescent_points,
-    plane_axes, plane_from_axes,
+    plane_axes, plane_from_axes, settings_plane,
 )
-from ..utils.picking import ray_plane, viewport_mouse
+from ..utils.picking import capture_hovered_workplane, nearest_face_boundary, ray_plane, viewport_mouse
 from ..utils.snapping import collect_plane_geometry, collect_scene_snap_geometry, snap_draw_point, travel_3d_cursor
 from ..utils.viewport import (
     ViewportPreviewMixin, draw_nearby_snap_candidates, draw_polyline, draw_snap_circle,
@@ -14,6 +15,7 @@ from ..utils.viewport import (
 
 
 TOOL_DATA = {
+    'LINE': ("Line", 2, "two points: start and end"),
     'ARC': ("Arc", 3, "three points: start, point on arc, end"),
     'BEZIER': ("Bezier", 4, "four points: start, start handle, end, end handle"),
     'CRESCENT': ("Crescent", 3, "three points: center, radius, inner curvature"),
@@ -28,7 +30,7 @@ class SHAPEFLOW_OT_draw_advanced(ViewportPreviewMixin, bpy.types.Operator):
     tool: bpy.props.EnumProperty(items=tuple((key, value[0], value[2]) for key, value in TOOL_DATA.items()))
 
     def _effective_plane(self, settings):
-        return self._auto_plane if settings.drawing_plane == 'AUTO' else settings.drawing_plane
+        return settings_plane(settings, self._auto_plane)
 
     @classmethod
     def description(cls, _context, properties):
@@ -73,8 +75,11 @@ class SHAPEFLOW_OT_draw_advanced(ViewportPreviewMixin, bpy.types.Operator):
         label, count, help_text = TOOL_DATA[self.tool]
         plane = self._effective_plane(context.scene.shapeflow)
         auto = f" • Auto {plane or 'waiting'}" if context.scene.shapeflow.drawing_plane == 'AUTO' else ""
+        settings = context.scene.shapeflow
+        output = "Embedded" if settings.creation_output == 'EMBEDDED' else "Separate"
+        receiver = f" → {settings.workplane_object}" if settings.creation_output == 'EMBEDDED' and settings.workplane_object else ""
         context.workspace.status_text_set(
-            f"ShapeFlow {label}: {help_text} • point {len(self._fixed)+1}/{count}{auto} • Alt bypasses magnetic • Shift free • Tab next target"
+            f"ShapeFlow {label}: {help_text} • {output}{receiver} • point {len(self._fixed)+1}/{count}{auto} • Alt bypasses magnetic • Shift free"
         )
 
     def _mouse_point(self, context, event):
@@ -91,6 +96,7 @@ class SHAPEFLOW_OT_draw_advanced(ViewportPreviewMixin, bpy.types.Operator):
                 self._scene_candidates, self._scene_edges,
                 bypass=event.shift, magnetic_bypass=event.alt, skip=self._snap_skip,
                 raw_point=self._travel_raw, snap_origin=self._travel_origin,
+                allowed_axes={'X', 'Y'} if settings.drawing_plane == 'FACE' else None,
             )
             self._last_mouse = Vector(mouse)
             self._travel_raw = raw
@@ -155,6 +161,12 @@ class SHAPEFLOW_OT_draw_advanced(ViewportPreviewMixin, bpy.types.Operator):
                 self._current = point
             context.area.tag_redraw()
             return {'RUNNING_MODAL'}
+        if event.type == 'W' and event.value == 'PRESS':
+            if capture_hovered_workplane(context, event):
+                self._reset(context); self._set_status(context); context.area.tag_redraw()
+            else:
+                self.report({'WARNING'}, "ShapeFlow: hover a mesh face before pressing W")
+            return {'RUNNING_MODAL'}
         viewport = viewport_mouse(context, event)
         if viewport and not (0 <= viewport[1][0] <= viewport[0].width and 0 <= viewport[1][1] <= viewport[0].height):
             return {'PASS_THROUGH'}
@@ -194,15 +206,38 @@ class SHAPEFLOW_OT_draw_advanced(ViewportPreviewMixin, bpy.types.Operator):
         plane = self._effective_plane(context.scene.shapeflow)
         if plane is None:
             raise ValueError("Move along two different axes to choose the automatic plane")
-        if self.tool == 'ARC':
-            create_polyline_object(context, arc_points_three(*self._fixed, plane), "ShapeFlow Arc")
+        if self.tool == 'LINE':
+            points, name = list(self._fixed), "ShapeFlow Line"
+        elif self.tool == 'ARC':
+            points, name = arc_points_three(*self._fixed, plane), "ShapeFlow Arc"
         elif self.tool == 'BEZIER':
             start, start_handle, end, end_handle = self._fixed
-            create_polyline_object(
-                context, bezier_points(start, start_handle, end_handle, end), "ShapeFlow Bezier"
-            )
+            points, name = bezier_points(start, start_handle, end_handle, end), "ShapeFlow Bezier"
         else:
             create_profile_object(context, crescent_points(*self._fixed, plane), "ShapeFlow Crescent")
+            return
+        settings = context.scene.shapeflow
+        if settings.creation_output == 'SEPARATE':
+            create_polyline_object(context, points, name)
+            return
+        obj = bpy.data.objects.get(settings.workplane_object)
+        face_index = settings.workplane_face_index
+        if obj is None or obj.type != 'MESH' or not 0 <= face_index < len(obj.data.polygons):
+            raise ValueError("Capture a receiver face with W before embedding")
+        first = nearest_face_boundary(obj, face_index, points[0])
+        last = nearest_face_boundary(obj, face_index, points[-1])
+        polygon = obj.data.polygons[face_index]
+        world = [obj.matrix_world @ obj.data.vertices[index].co for index in polygon.vertices]
+        scale = max((point - world[0]).length for point in world)
+        tolerance = max(1.0e-5, scale * 0.025)
+        if first is None or last is None or first[0] > tolerance or last[0] > tolerance:
+            raise ValueError("Embedded open paths must start and end on the receiver boundary")
+        embedded = list(points)
+        embedded[0], embedded[-1] = first[1], last[1]
+        split_face_with_path(obj, face_index, embedded, first[2], first[3], last[2], last[3])
+        context.view_layer.objects.active = obj
+        obj.select_set(True)
+        settings.workplane_face_index = -1
 
     def _preview_points(self, context):
         points = self._fixed + ([self._current] if self._current is not None else [])
@@ -210,6 +245,8 @@ class SHAPEFLOW_OT_draw_advanced(ViewportPreviewMixin, bpy.types.Operator):
         if plane is None:
             return points
         try:
+            if self.tool == 'LINE' and len(points) >= 2:
+                return points[:2]
             if self.tool == 'ARC' and len(points) >= 3:
                 return arc_points_three(points[0], points[1], points[2], plane)
             if self.tool == 'BEZIER' and len(points) >= 4:
@@ -222,6 +259,13 @@ class SHAPEFLOW_OT_draw_advanced(ViewportPreviewMixin, bpy.types.Operator):
 
     def draw_preview(self, context):
         settings = context.scene.shapeflow
+        if settings.creation_output == 'EMBEDDED':
+            obj = bpy.data.objects.get(settings.workplane_object)
+            face_index = settings.workplane_face_index
+            if obj and obj.type == 'MESH' and 0 <= face_index < len(obj.data.polygons):
+                polygon = obj.data.polygons[face_index]
+                receiver = [obj.matrix_world @ obj.data.vertices[index].co for index in polygon.vertices]
+                draw_polyline(receiver, color=(1.0, 0.34, 0.08, 1.0), closed=True, width=3.0)
         if settings.geometry_snap and self._current is not None:
             candidates = self._scene_candidates if not self._fixed else (
                 self._plane_candidates or self._scene_candidates
