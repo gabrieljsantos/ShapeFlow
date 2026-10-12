@@ -2,6 +2,7 @@ import bpy
 from bpy_extras import view3d_utils
 from mathutils import Vector
 
+from .drawing_base import PlanarDrawingMixin
 from ..mesh.creation import create_rectangle_object
 from ..utils.geometry import (
     accumulate_axis_intent,
@@ -13,22 +14,20 @@ from ..utils.geometry import (
     rectangle_corners,
     typed_length_to_blender_units,
     unit_suffix,
-    settings_plane,
 )
-from ..utils.picking import capture_hovered_workplane, ray_plane, viewport_mouse
+from ..utils.picking import ray_plane, viewport_mouse
 from ..utils.snapping import (
     collect_plane_geometry,
-    collect_scene_snap_geometry,
     snap_draw_point,
     travel_3d_cursor,
 )
 from ..utils.viewport import (
-    ViewportPreviewMixin, draw_nearby_snap_candidates, draw_polyline,
+    draw_nearby_snap_candidates, draw_polyline,
     draw_snap_circle, draw_text,
 )
 
 
-class SHAPEFLOW_OT_draw_rectangle(ViewportPreviewMixin, bpy.types.Operator):
+class SHAPEFLOW_OT_draw_rectangle(PlanarDrawingMixin, bpy.types.Operator):
     bl_idname = "shapeflow.draw_rectangle"
     bl_label = "Draw Rectangle"
     bl_description = "Draw a rectangular native mesh face"
@@ -49,47 +48,13 @@ class SHAPEFLOW_OT_draw_rectangle(ViewportPreviewMixin, bpy.types.Operator):
             settings.creation_origin, settings.proportional_creation,
         )
 
-    def _effective_plane(self, settings):
-        return settings_plane(settings, self._auto_plane)
-
-    @classmethod
-    def poll(cls, context):
-        return (
-            context.area and context.area.type == 'VIEW_3D'
-            and context.window_manager.shapeflow_mode
-        )
-
     def invoke(self, context, event):
-        context.window_manager.shapeflow_active_tool = 'RECTANGLE'
-        self._reset(context)
-        self.add_preview(context)
-        context.window_manager.modal_handler_add(self)
-        self._set_status(context)
-        return {'RUNNING_MODAL'}
+        return self._start_planar_modal(context, 'RECTANGLE')
 
     def _reset(self, context):
         self._start = None
-        self._current = None
-        self._snap_result = None
         self._numeric = ""
-        self._current = Vector(context.scene.shapeflow.drawing_origin)
-        self._travel_origin = self._current.copy()
-        self._travel_raw = self._current.copy()
-        self._last_mouse = None
-        self._travel_axis = None
-        self._snap_skip = 0
-        self._auto_plane = None
-        self._auto_axes = []
-        self._auto_axis_candidate = None
-        self._auto_axis_pixels = 0.0
-        self._scene_candidates, self._scene_edges = collect_scene_snap_geometry(context)
-        plane = self._effective_plane(context.scene.shapeflow)
-        if plane:
-            self._candidates, self._edges = collect_plane_geometry(
-                context, plane, context.scene.shapeflow.drawing_origin,
-            )
-        else:
-            self._candidates, self._edges = [], []
+        self._initialize_planar_cursor(context)
 
     def _set_status(self, context):
         plane = context.scene.shapeflow.drawing_plane
@@ -98,7 +63,7 @@ class SHAPEFLOW_OT_draw_rectangle(ViewportPreviewMixin, bpy.types.Operator):
         stage = "origin" if self._start is None else "size"
         auto = f" • Auto {effective or 'waiting'}" if plane == 'AUTO' else ""
         context.workspace.status_text_set(
-            f"ShapeFlow Draw: click/type {labels} for {stage}{auto} • Alt bypasses magnetic • Shift free • Tab next target"
+            f"ShapeFlow Draw: click/type {labels} for {stage}{auto} • Alt temporarily free • Tab next target"
         )
 
     def _mouse_point(self, context, event):
@@ -113,7 +78,7 @@ class SHAPEFLOW_OT_draw_rectangle(ViewportPreviewMixin, bpy.types.Operator):
             point, kind, axis, raw = travel_3d_cursor(
                 context, viewport[0], viewport[1], self._last_mouse, self._current,
                 settings, self._scene_candidates, self._scene_edges,
-                bypass=event.shift, magnetic_bypass=event.alt, skip=self._snap_skip,
+                bypass=event.alt, magnetic_bypass=event.alt, skip=self._snap_skip,
                 raw_point=self._travel_raw, snap_origin=self._travel_origin,
                 allowed_axes={'X', 'Y'} if settings.drawing_plane == 'FACE' else None,
             )
@@ -122,7 +87,7 @@ class SHAPEFLOW_OT_draw_rectangle(ViewportPreviewMixin, bpy.types.Operator):
             self._current = point
             self._travel_axis = axis
             settings.drawing_origin = point
-            self._snap_result = type('TravelSnap', (), {'kind': kind, 'guide_u': None, 'guide_v': None})()
+            self._set_travel_snap(point, kind)
             return point
         if settings.drawing_plane == 'AUTO':
             if self._last_mouse is None:
@@ -134,7 +99,7 @@ class SHAPEFLOW_OT_draw_rectangle(ViewportPreviewMixin, bpy.types.Operator):
             point, kind, axis, raw = travel_3d_cursor(
                 context, viewport[0], viewport[1], self._last_mouse, self._current,
                 settings, candidates, edges,
-                bypass=event.shift, magnetic_bypass=event.alt, skip=self._snap_skip,
+                bypass=event.alt, magnetic_bypass=event.alt, skip=self._snap_skip,
                 raw_point=self._travel_raw, snap_origin=self._start,
                 allowed_axes=allowed,
             )
@@ -157,9 +122,7 @@ class SHAPEFLOW_OT_draw_rectangle(ViewportPreviewMixin, bpy.types.Operator):
                         context, self._auto_plane, self._start,
                     )
                     self._set_status(context)
-            self._snap_result = type(
-                'TravelSnap', (), {'kind': kind, 'guide_u': None, 'guide_v': None}
-            )()
+            self._set_travel_snap(point, kind)
             return point
         _, _, normal = plane_axes(plane)
         raw = ray_plane(context, viewport[1], self._start, normal)
@@ -167,7 +130,7 @@ class SHAPEFLOW_OT_draw_rectangle(ViewportPreviewMixin, bpy.types.Operator):
             return None
         self._snap_result = snap_draw_point(
             context, viewport[0], raw, plane, context.scene.shapeflow,
-            self._candidates, self._edges, bypass=event.shift,
+            self._candidates, self._edges, bypass=event.alt,
             magnetic_bypass=event.alt, skip=self._snap_skip, origin=self._start,
         )
         return self._snap_result.point
@@ -204,19 +167,16 @@ class SHAPEFLOW_OT_draw_rectangle(ViewportPreviewMixin, bpy.types.Operator):
             self._set_status(context)
             context.area.tag_redraw()
             return {'RUNNING_MODAL'}
-        if event.type == 'W' and event.value == 'PRESS':
-            if capture_hovered_workplane(context, event):
-                self._reset(context); self._set_status(context); context.area.tag_redraw()
-            else:
-                self.report({'WARNING'}, "ShapeFlow: hover a mesh face before pressing W")
-            return {'RUNNING_MODAL'}
-        if event.type == 'TAB' and event.value == 'PRESS':
-            self._snap_skip += 1
-            self._current = self._mouse_point(context, event)
-            context.area.tag_redraw()
-            return {'RUNNING_MODAL'}
-        viewport = viewport_mouse(context, event)
-        if viewport and not (0 <= viewport[1][0] <= viewport[0].width and 0 <= viewport[1][1] <= viewport[0].height):
+        handled = self._capture_workplane_event(context, event)
+        if handled:
+            return handled
+        handled = self._recenter_increment_event(context, event)
+        if handled:
+            return handled
+        handled = self._cycle_snap_event(context, event)
+        if handled:
+            return handled
+        if self._pointer_outside_viewport(context, event):
             return {'PASS_THROUGH'}
         if event.type == 'MOUSEMOVE':
             self._current = self._mouse_point(context, event)
@@ -352,7 +312,3 @@ class SHAPEFLOW_OT_draw_rectangle(ViewportPreviewMixin, bpy.types.Operator):
         if self._numeric:
             text += f"  › {self._numeric}"
         draw_text((screen.x + 16, screen.y + 16), text, color=(1.0, 0.9, 0.75, 1.0))
-
-    def _finish(self, context):
-        self.remove_preview(context)
-        context.workspace.status_text_set(None)

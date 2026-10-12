@@ -13,6 +13,7 @@ bl_info = {
 from . import properties
 from .operators import CLASSES as OPERATOR_CLASSES
 from .ui import CLASSES as UI_CLASSES
+from .ui import register_brand_icon, unregister_brand_icon
 
 
 CLASSES = (*properties.CLASSES, *OPERATOR_CLASSES, *UI_CLASSES)
@@ -20,6 +21,7 @@ addon_keymaps = []
 
 
 def register():
+    register_brand_icon()
     for cls in CLASSES:
         __import__("bpy").utils.register_class(cls)
     properties.register_properties()
@@ -37,3 +39,4 @@ def unregister():
     properties.unregister_properties()
     for cls in reversed(CLASSES):
         __import__("bpy").utils.unregister_class(cls)
+    unregister_brand_icon()

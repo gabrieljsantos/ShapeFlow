@@ -230,7 +230,7 @@ class SHAPEFLOW_OT_move_object(_SpatialToolMixin, bpy.types.Operator):
             )
             rv3d = context.space_data.region_3d
             nearby_radius = settings.snap_distance * 2.0
-            show_guides = settings.smart_guides and settings.geometry_snap and not event.alt and not event.shift
+            show_guides = settings.smart_guides and settings.geometry_snap and not event.alt
             self._nearby_targets = tuple(
                 candidate.point for candidate in self._candidates
                 if show_guides
@@ -242,14 +242,14 @@ class SHAPEFLOW_OT_move_object(_SpatialToolMixin, bpy.types.Operator):
                 if guide_point is None:
                     guide_point = self._guide_origin.copy()
                 direction = self._guide_edge[1] - self._guide_edge[0]
-                if settings.grid_snap and not event.shift and direction.length_squared > 1.0e-12:
+                if settings.grid_snap and not event.alt and direction.length_squared > 1.0e-12:
                     direction.normalize()
                     distance = (guide_point - self._guide_origin).dot(direction)
                     guide_point = self._guide_origin + direction * snap_scalar(distance, _step(context))
                 offset = guide_point - self._anchor
                 self._snap_target = guide_point.copy(); self._snap_kind = 'GUIDE'
                 self._snap_highlight = self._guide_edge
-            elif target and settings.geometry_snap and not event.alt and not event.shift:
+            elif target and settings.geometry_snap and not event.alt:
                 offset = target.point - self._anchor
                 changed_target = self._snap_target is None or (self._snap_target - target.point).length > 1.0e-7
                 self._snap_target = target.point.copy(); self._snap_kind = target.kind
@@ -264,7 +264,7 @@ class SHAPEFLOW_OT_move_object(_SpatialToolMixin, bpy.types.Operator):
                 self._snap_target = None; self._snap_kind = None; self._snap_highlight = None
                 constraint = settings.move_constraint
                 if len(constraint) == 1:
-                    offset, _axis = _axis_drag(context, region, self._anchor, self._mouse_start, mouse, constraint, event.shift)
+                    offset, _axis = _axis_drag(context, region, self._anchor, self._mouse_start, mouse, constraint, event.alt)
                 else:
                     normal = {'XY': AXES['Z'], 'XZ': AXES['Y'], 'YZ': AXES['X']}.get(constraint)
                     if normal is None:
@@ -272,7 +272,7 @@ class SHAPEFLOW_OT_move_object(_SpatialToolMixin, bpy.types.Operator):
                     start = ray_plane(context, self._mouse_start, self._anchor, normal)
                     now = ray_plane(context, mouse, self._anchor, normal)
                     offset = (now - start) if start is not None and now is not None else Vector()
-                    if settings.grid_snap and not event.shift:
+                    if settings.grid_snap and not event.alt:
                         spacing = _step(context)
                         offset = Vector(tuple(snap_scalar(value, spacing) for value in offset))
             self._current_offset = offset.copy()

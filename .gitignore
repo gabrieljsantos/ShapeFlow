@@ -1,3 +1,6 @@
 __pycache__/
 *.py[cod]
 shapeflow.zip
+/site/.openai/
+/backups/
+/site/.sites-checkout/

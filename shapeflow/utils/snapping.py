@@ -23,6 +23,16 @@ SNAP_PRIORITY = {
 }
 
 
+def cursor_increment_enabled(settings, bypass=False):
+    """Increment only applies to the roaming axis cursor.
+
+    When Axis travel is disabled the cursor follows the drawing plane
+    continuously. The global Incremental option can still quantize shape
+    dimensions and the Move/Push-Pull tools elsewhere.
+    """
+    return bool(settings.axis_cursor and settings.grid_snap and not bypass)
+
+
 @dataclass
 class SnapCandidate:
     point: Vector
@@ -66,23 +76,6 @@ def collect_plane_geometry(context, plane, plane_point=None, tolerance=1.0e-5):
     return candidates, edges
 
 
-def collect_scene_snap_points(context, exclude=None):
-    """Collect vertices, edge midpoints, and face centers in full 3D space."""
-    points = []
-    for obj in context.visible_objects:
-        if obj == exclude or obj.type != 'MESH' or obj.hide_get():
-            continue
-        matrix = obj.matrix_world
-        vertices = [matrix @ vertex.co for vertex in obj.data.vertices]
-        points.extend(SnapCandidate(point.copy(), "VERTEX") for point in vertices)
-        for edge in obj.data.edges:
-            points.append(SnapCandidate(
-                (vertices[edge.vertices[0]] + vertices[edge.vertices[1]]) * 0.5, "MIDPOINT"
-            ))
-        points.extend(SnapCandidate(matrix @ polygon.center, "FACE_CENTER") for polygon in obj.data.polygons)
-    return points
-
-
 def collect_object_snap_geometry(obj):
     """Return full-3D snap points and edges for one mesh object."""
     if obj is None or obj.type != 'MESH':
@@ -119,19 +112,6 @@ def collect_scene_snap_geometry(context, exclude=None):
         candidates.extend(obj_candidates)
         edges.extend(obj_edges)
     return candidates, edges
-
-
-def nearest_screen_candidate(context, region, mouse, candidates, threshold):
-    rv3d = context.space_data.region_3d
-    best = None
-    for candidate in candidates:
-        screen = view3d_utils.location_3d_to_region_2d(region, rv3d, candidate.point)
-        if screen is None:
-            continue
-        distance = (screen - Vector(mouse)).length
-        if distance <= threshold and (best is None or distance < best[0]):
-            best = (distance, candidate)
-    return best[1] if best else None
 
 
 def _screen_geometry_matches(context, region, mouse, candidates, edges, threshold):
@@ -193,16 +173,6 @@ def travel_3d_cursor(context, region, mouse, previous_mouse, point, settings, ca
             return current, "CURSOR", None, current.copy()
         distance = (Vector(point) - ray_origin).dot(normal) / denominator
         result = ray_origin + ray_direction * distance
-        if settings.grid_snap and not bypass:
-            spacing = typed_length_to_blender_units(
-                settings.grid_spacing, settings.length_unit,
-                context.scene.unit_settings.scale_length,
-            )
-            u, v = plane_coordinates(result, active_plane)
-            plane_offset = normal * Vector(point).dot(normal)
-            result = point_from_plane_coordinates(
-                snap_scalar(u, spacing), snap_scalar(v, spacing), active_plane,
-            ) + plane_offset
         return result, "PLANE", None, result.copy()
 
     if previous_mouse is None:
@@ -249,7 +219,7 @@ def travel_3d_cursor(context, region, mouse, previous_mouse, point, settings, ca
     raw = Vector(raw_point) if raw_point is not None else Vector(point)
     raw_result = raw + axis * distance
     result = raw_result.copy()
-    if settings.grid_snap and not bypass:
+    if cursor_increment_enabled(settings, bypass):
         spacing = typed_length_to_blender_units(
             settings.grid_spacing, settings.length_unit, context.scene.unit_settings.scale_length
         )

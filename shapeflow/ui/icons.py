@@ -1,0 +1,74 @@
+"""Central icon registry for the ShapeFlow interface."""
+
+TOOL_ICONS = {
+    # Available drawing tools
+    'RECTANGLE': 'MESH_PLANE',
+    'RECTANGLE_2P': 'MESH_GRID',
+    'RECTANGLE_ROTATED': 'ORIENTATION_GIMBAL',
+    'POLYGON': 'MESH_CIRCLE',
+    'LINE': 'IPO_LINEAR',
+    'POLYLINE': 'IPO_LINEAR',
+    'ELLIPSE': 'MESH_CIRCLE',
+    'ARC_2P': 'CURVE_BEZCURVE',
+    'ARC_CENTER': 'CURVE_BEZCIRCLE',
+    'PIE': 'MESH_CIRCLE',
+    'ARC': 'CURVE_BEZCURVE',
+    'BEZIER': 'CURVE_BEZCURVE',
+    'BSPLINE': 'CURVE_NCURVE',
+    'PEN': 'CURVE_BEZCURVE',
+    'FREEHAND': 'GREASEPENCIL',
+    'LIVE_SKETCH': 'GP_MULTIFRAME_EDITING',
+    'SMART_DRAW': 'TRACKING_FORWARDS_SINGLE',
+    'CRESCENT': 'MESH_CIRCLE',
+    # Available modeling tools
+    'BOX_3P': 'MESH_CUBE',
+    'EXTRUDE': 'MOD_SOLIDIFY',
+    'MOVE': 'ORIENTATION_GLOBAL',
+    'OFFSET': 'MOD_SOLIDIFY',
+    'FILLET': 'MOD_BEVEL',
+    'CHAMFER': 'MOD_BEVEL',
+    'TRIM': 'SCULPTMODE_HLT',
+    'EXTEND': 'CONSTRAINT',
+    'ROTATE': 'DRIVER_ROTATIONAL_DIFFERENCE',
+    'SCALE': 'FULLSCREEN_ENTER',
+    'FOLLOW_ME': 'CURVE_PATH',
+    'UNION': 'SELECT_EXTEND',
+    'SUBTRACT': 'SELECT_SUBTRACT',
+    'INTERSECT': 'SELECT_INTERSECT',
+    'SOLID_TRIM': 'MOD_BOOLEAN',
+    'SOLID_SPLIT': 'MOD_EXPLODE',
+    'GROUP': 'OUTLINER_COLLECTION',
+    'COMPONENT': 'LINKED',
+    'MEASURE': 'DRIVER_DISTANCE',
+    'PROTRACTOR': 'DRIVER_ROTATIONAL_DIFFERENCE',
+    'DIMENSIONS': 'EMPTY_ARROWS',
+    'ARRAY_COPY': 'MOD_ARRAY',
+    'MIRROR': 'MOD_MIRROR',
+    'SOLID_CHECK': 'CHECKMARK',
+    # Planned drawing tools
+    # Planned editing and modeling tools
+    # Planned precision and organization tools
+}
+
+UI_ICONS = {
+    'WORKSPACE': 'WORKSPACE',
+    'MODE_ENTER': 'PLAY',
+    'MODE_EXIT': 'PAUSE',
+    'WORKPLANE': 'ORIENTATION_LOCAL',
+    'FACE': 'SNAP_FACE',
+    'GRID': 'GRID',
+    'COPY': 'DUPLICATE',
+    'DRAWING_SECTION': 'GREASEPENCIL',
+    'MODELING_SECTION': 'MESH_CUBE',
+    'WORKFLOW_SECTION': 'TOOL_SETTINGS',
+    'ACTIVE': 'RADIOBUT_ON',
+    'INFO': 'INFO',
+}
+
+
+def tool_icon(identifier):
+    return TOOL_ICONS.get(identifier, 'QUESTION')
+
+
+def ui_icon(identifier):
+    return UI_ICONS.get(identifier, 'QUESTION')

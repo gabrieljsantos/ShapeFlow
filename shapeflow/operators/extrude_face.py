@@ -63,7 +63,7 @@ class SHAPEFLOW_OT_extrude_face(ViewportPreviewMixin, bpy.types.Operator):
             snap_state = "free" if self._snap_bypassed else "step"
             mode = "fuse on contact" if settings.extrusion_mode == 'FUSE' else "simple"
             context.workspace.status_text_set(
-                f"ShapeFlow Extrude: drag [{value}, {snap_state}, {mode}] • Shift bypasses step • type exact value • release/Enter confirms"
+                f"ShapeFlow Extrude: drag [{value}, {snap_state}, {mode}] • Alt temporarily free • type exact value • release/Enter confirms"
             )
         else:
             context.workspace.status_text_set("ShapeFlow Extrude: hover a face, then click and drag • Esc cancels")
@@ -156,7 +156,7 @@ class SHAPEFLOW_OT_extrude_face(ViewportPreviewMixin, bpy.types.Operator):
                     delta = (mouse[0] - self._start_mouse[0], mouse[1] - self._start_mouse[1])
                     raw_distance = (delta[0] * axis.x + delta[1] * axis.y) * 0.01
                     settings = context.scene.shapeflow
-                    use_grid = settings.grid_snap and not event.shift
+                    use_grid = settings.grid_snap and not event.alt
                     self._snap_bypassed = not use_grid
                     if use_grid:
                         spacing = typed_length_to_blender_units(

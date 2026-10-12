@@ -1,12 +1,13 @@
 import bpy
 from mathutils import Vector
 
+from .drawing_base import PlanarDrawingMixin
 from ..mesh.creation import create_box_object, create_rectangle_object
 from ..utils.geometry import accumulate_axis_intent, axis_name, plane_axes, settings_plane
-from ..utils.picking import capture_hovered_workplane, viewport_mouse
+from ..utils.picking import viewport_mouse
 from ..utils.snapping import collect_scene_snap_geometry, travel_3d_cursor
 from ..utils.viewport import (
-    ViewportPreviewMixin, draw_nearby_snap_candidates, draw_polyline,
+    draw_nearby_snap_candidates, draw_polyline,
     draw_snap_circle,
 )
 
@@ -14,7 +15,7 @@ from ..utils.viewport import (
 AXES = {'X': Vector((1, 0, 0)), 'Y': Vector((0, 1, 0)), 'Z': Vector((0, 0, 1))}
 
 
-class SHAPEFLOW_OT_draw_dimensional(ViewportPreviewMixin, bpy.types.Operator):
+class SHAPEFLOW_OT_draw_dimensional(PlanarDrawingMixin, bpy.types.Operator):
     """Create an orthogonal face or box one dimension at a time."""
 
     bl_idname = "shapeflow.draw_dimensional"
@@ -32,17 +33,8 @@ class SHAPEFLOW_OT_draw_dimensional(ViewportPreviewMixin, bpy.types.Operator):
             return "3-point box: draw width, height, and depth as consecutive orthogonal stages"
         return "2-point rectangle: draw a line first, then pull its orthogonal height"
 
-    @classmethod
-    def poll(cls, context):
-        return context.area and context.area.type == 'VIEW_3D' and context.window_manager.shapeflow_mode
-
     def invoke(self, context, _event):
-        context.window_manager.shapeflow_active_tool = self.shape
-        self._reset(context)
-        self.add_preview(context)
-        context.window_manager.modal_handler_add(self)
-        self._set_status(context)
-        return {'RUNNING_MODAL'}
+        return self._start_planar_modal(context, self.shape)
 
     def _reset(self, context):
         settings = context.scene.shapeflow
@@ -71,7 +63,7 @@ class SHAPEFLOW_OT_draw_dimensional(ViewportPreviewMixin, bpy.types.Operator):
         stage = stages[min(len(self._fixed), len(stages) - 1)]
         axis = self._locked_axis or "choose axis"
         context.workspace.status_text_set(
-            f"ShapeFlow {label}: {stage} [{axis}] • click to confirm stage • Alt bypasses magnetic • Shift free"
+            f"ShapeFlow {label}: {stage} [{axis}] • click to confirm stage • Alt temporarily free"
         )
 
     def _begin_stage(self, point, mouse):
@@ -119,7 +111,7 @@ class SHAPEFLOW_OT_draw_dimensional(ViewportPreviewMixin, bpy.types.Operator):
             allowed = {self._locked_axis} if self._locked_axis else set(AXES) - set(self._axis_names)
         point, kind, axis, raw = travel_3d_cursor(
             context, region, mouse, self._last_mouse, self._current, settings,
-            candidates, edges, bypass=event.shift, magnetic_bypass=event.alt,
+            candidates, edges, bypass=event.alt, magnetic_bypass=event.alt,
             raw_point=self._raw, snap_origin=self._stage_origin, allowed_axes=allowed,
         )
         self._last_mouse = Vector(mouse)
@@ -167,15 +159,15 @@ class SHAPEFLOW_OT_draw_dimensional(ViewportPreviewMixin, bpy.types.Operator):
             self._reset(context)
             self._set_status(context)
             return {'RUNNING_MODAL'}
-        if event.type == 'W' and event.value == 'PRESS':
-            if capture_hovered_workplane(context, event):
-                self._reset(context); self._set_status(context); context.area.tag_redraw()
-            else:
-                self.report({'WARNING'}, "ShapeFlow: hover a mesh face before pressing W")
-            return {'RUNNING_MODAL'}
-        viewport = viewport_mouse(context, event)
-        if viewport and not (0 <= viewport[1][0] <= viewport[0].width and 0 <= viewport[1][1] <= viewport[0].height):
+        handled = self._capture_workplane_event(context, event)
+        if handled:
+            return handled
+        handled = self._recenter_increment_event(context, event)
+        if handled:
+            return handled
+        if self._pointer_outside_viewport(context, event):
             return {'PASS_THROUGH'}
+        viewport = viewport_mouse(context, event)
         if event.type == 'MOUSEMOVE':
             self._mouse_point(context, event)
             context.area.tag_redraw()
@@ -232,7 +224,3 @@ class SHAPEFLOW_OT_draw_dimensional(ViewportPreviewMixin, bpy.types.Operator):
                 context, self._current, radius=6.5,
                 fill=(0.12, 0.9, 0.3, 0.72), outline=(0.2, 1.0, 0.42, 1.0), width=2.5,
             )
-
-    def _finish(self, context):
-        self.remove_preview(context)
-        context.workspace.status_text_set(None)

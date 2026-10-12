@@ -19,8 +19,8 @@ preserve these invariants.
 - The configured Step size quantizes the accumulated raw position relative to the
   beginning of the gesture.
 - Magnetic geometry snapping may override the increment near a direct target.
-- Holding Alt bypasses Magnetic and Smart Guides while retaining incremental motion.
-- Holding Shift temporarily enables free movement.
+- Holding Alt temporarily bypasses Magnetic, Smart Guides, and incremental motion.
+- Shift remains reserved for accumulated Blender selection.
 
 ## Implementation contract
 
@@ -48,5 +48,4 @@ For both a default scene and a millimeter-scale scene:
 3. Move the mouse very slowly and confirm that sub-step motion accumulates.
 4. Change direction during the same gesture and confirm movement along X, Y, and Z.
 5. Confirm that the HUD changes by the configured Step size without large jumps.
-6. Repeat with Magnetic enabled, Alt held, and Shift held.
-
+6. Repeat with Magnetic enabled and Alt held; confirm Shift remains available for accumulated selection before tool activation.

@@ -2,6 +2,8 @@ import bpy
 from bpy.app.handlers import persistent
 from bpy.props import BoolProperty, EnumProperty, FloatProperty, FloatVectorProperty, IntProperty, PointerProperty, StringProperty
 
+from .tool_catalog import active_tool_items
+
 
 def _sync_scene_units(self, context):
     context.scene.unit_settings.system = 'METRIC'
@@ -33,7 +35,7 @@ class ShapeFlowSettings(bpy.types.PropertyGroup):
     )
     axis_cursor: BoolProperty(
         name="Axis navigation",
-        description="Move the construction cursor along the projected X, Y, or Z axis; disable for absolute positioning on the drawing plane",
+        description="Move the construction cursor incrementally along projected axes; disable for continuous positioning on the drawing plane",
         default=True,
     )
     move_constraint: EnumProperty(
@@ -45,9 +47,121 @@ class ShapeFlowSettings(bpy.types.PropertyGroup):
         ),
         default='XYZ',
     )
+    scale_input_mode: EnumProperty(
+        name="Scale input",
+        items=(
+            ('FACTOR', "Factor", "Use a multiplier such as 1.5"),
+            ('PERCENT', "Percent", "Use a percentage such as 150"),
+            ('DIMENSION', "Exact size", "Scale uniformly so the selected dimension matches an exact requested size"),
+        ),
+        default='FACTOR',
+    )
+    rotation_increment_enabled: BoolProperty(
+        name="Angular increment",
+        description="Quantize rotation using the configured angular step",
+        default=True,
+    )
+    rotation_pivot_mode: EnumProperty(
+        name="Rotation pivot",
+        items=(
+            ('PICKED', "Picked point", "Choose any snapped geometry point as the rotation origin"),
+            ('CENTER', "Object center", "Use the active object's bounding-box center as the rotation origin"),
+        ),
+        default='PICKED',
+    )
+    rotation_increment: FloatProperty(
+        name="Angle step", description="Rotation increment in degrees",
+        default=15.0, min=0.1, max=180.0, precision=2,
+    )
+    scale_axis: EnumProperty(
+        name="Measured size",
+        items=(
+            ('MAX', "Largest", "Use the largest world bounding-box dimension"),
+            ('X', "X", "Use world-space width"),
+            ('Y', "Y", "Use world-space depth"),
+            ('Z', "Z", "Use world-space height"),
+        ),
+        default='MAX',
+    )
+    scale_target_size: FloatProperty(
+        name="Target size",
+        description="Exact final size in the selected ShapeFlow unit",
+        default=1000.0,
+        min=0.0001,
+        precision=4,
+    )
+    array_mode: EnumProperty(
+        name="Series type",
+        items=(
+            ('LINEAR', "Linear", "Use Blender's non-destructive Array modifier"),
+            ('RADIAL', "Radial", "Create linked instances rotated around the ShapeFlow cursor"),
+        ),
+        default='LINEAR',
+    )
+    array_axis: EnumProperty(
+        name="Series axis",
+        items=(('X', "X", "Use X axis"), ('Y', "Y", "Use Y axis"), ('Z', "Z", "Use Z axis")),
+        default='X',
+    )
+    array_count: IntProperty(
+        name="Count", description="Total number of objects including the original",
+        default=3, min=2, max=1000,
+    )
+    array_spacing: FloatProperty(
+        name="Spacing", description="Constant distance between linear copies in the selected unit",
+        default=1000.0, precision=4,
+    )
+    array_angle: FloatProperty(
+        name="Step angle", description="Rotation in degrees between radial linked copies",
+        default=45.0, min=-360.0, max=360.0, precision=2,
+    )
+    mirror_axis: EnumProperty(
+        name="Mirror axis",
+        items=(('X', "X", "Mirror on local X"), ('Y', "Y", "Mirror on local Y"), ('Z', "Z", "Mirror on local Z")),
+        default='X',
+    )
+    measure_create_guide: BoolProperty(
+        name="Create guide",
+        description="Keep each measurement as an editable native non-rendering Curve",
+        default=False,
+    )
+    last_measure: FloatProperty(
+        name="Last measurement", default=0.0, min=0.0,
+        unit='LENGTH', precision=6, options={'HIDDEN'},
+    )
+    protractor_create_guide: BoolProperty(
+        name="Create angle guide",
+        description="Keep the measured rays as an editable native non-rendering Curve",
+        default=False,
+    )
+    last_angle: FloatProperty(
+        name="Last angle", default=0.0, min=0.0, max=3.141592653589793,
+        subtype='ANGLE', unit='ROTATION', precision=4, options={'HIDDEN'},
+    )
+    dimension_type: EnumProperty(
+        name="Dimension type",
+        items=(
+            ('LINEAR', "Linear", "Distance between two points"),
+            ('ANGULAR', "Angular", "Angle from center and two directions"),
+            ('RADIUS', "Radius", "Radius between center and rim"),
+            ('DIAMETER', "Diameter", "Twice the distance between center and rim"),
+        ),
+        default='LINEAR',
+    )
+    inspection_summary: StringProperty(
+        name="Inspection result", default="Not inspected", options={'SKIP_SAVE'},
+    )
+    curve_edit_side: EnumProperty(
+        name="Curve end",
+        items=(
+            ('START', "Start", "Trim or extend the first endpoint"),
+            ('END', "End", "Trim or extend the last endpoint"),
+        ),
+        default='END',
+    )
     copy_mode: BoolProperty(
         name="Copy",
-        description="Duplicate before transforming; future Move and Rotate tools will use the same setting",
+        description="Duplicate the selected object before moving it or pushing/pulling a face",
         default=False,
     )
     extrusion_mode: EnumProperty(
@@ -58,12 +172,25 @@ class ShapeFlowSettings(bpy.types.PropertyGroup):
         ),
         default='SIMPLE',
     )
+    follow_me_caps: BoolProperty(
+        name="Close sweep ends",
+        description="Use Blender Curve fill caps at the start and end of the sweep",
+        default=True,
+    )
     polygon_sides: IntProperty(
         name="Sides",
         description="Number of sides used by the Polygon tool",
         default=5,
         min=3,
         max=256,
+    )
+    stroke_spacing: IntProperty(
+        name="Stroke spacing", description="Minimum pointer distance in pixels between freehand samples",
+        default=4, min=1, max=32, subtype='PIXEL',
+    )
+    live_smoothing: IntProperty(
+        name="Live smoothing", description="Number of smoothing passes applied to Live Sketch",
+        default=2, min=0, max=4,
     )
     creation_origin: EnumProperty(
         name="Creation",
@@ -109,11 +236,6 @@ class ShapeFlowSettings(bpy.types.PropertyGroup):
         min=4,
         max=64,
         subtype='PIXEL',
-    )
-    snap_enabled: BoolProperty(
-        name="Automatic alignment",
-        description="Keep ShapeFlow alignment active during normal operation",
-        default=True,
     )
     grid_snap: BoolProperty(
         name="Incremental",
@@ -194,21 +316,16 @@ def register_properties():
     )
     bpy.types.WindowManager.shapeflow_active_tool = EnumProperty(
         name="Active ShapeFlow Tool",
-        items=(
-            ('NONE', "None", "No ShapeFlow tool is active"),
-            ('RECTANGLE', "Rectangle", "Create rectangles continuously"),
-            ('RECTANGLE_2P', "2P Rectangle", "Create a rectangle as width then height"),
-            ('BOX_3P', "3P Box", "Create a box as width, height, then depth"),
-            ('POLYGON', "Polygon", "Create regular polygons continuously"),
-            ('ARC', "Arc", "Create three-point arcs continuously"),
-            ('BEZIER', "Bezier", "Create cubic Bezier curves continuously"),
-            ('CRESCENT', "Crescent", "Create crescent faces continuously"),
-            ('LINE', "Line", "Create straight lines continuously"),
-            ('EXTRUDE', "Extrude", "Push or pull faces continuously"),
-            ('MOVE', "Move", "Move whole objects with snapping"),
-        ),
+        items=active_tool_items(),
         default='NONE',
         options={'HIDDEN', 'SKIP_SAVE'},
+    )
+    bpy.types.WindowManager.shapeflow_polygon_mode = EnumProperty(
+        name="Polygon mode",
+        items=(('VERTEX', "Regular by vertex", "Radius reaches a vertex"),
+               ('EDGE', "Regular by edge", "Radius reaches the midpoint of an edge"),
+               ('FREE', "Free vertices", "Place each vertex independently")),
+        default='VERTEX', options={'SKIP_SAVE'},
     )
     if reset_mode_on_load not in bpy.app.handlers.load_post:
         bpy.app.handlers.load_post.append(reset_mode_on_load)
@@ -222,6 +339,7 @@ def unregister_properties():
     if disable_mode_after_workspace_change in bpy.app.handlers.depsgraph_update_post:
         bpy.app.handlers.depsgraph_update_post.remove(disable_mode_after_workspace_change)
     del bpy.types.WindowManager.shapeflow_active_tool
+    del bpy.types.WindowManager.shapeflow_polygon_mode
     del bpy.types.WindowManager.shapeflow_workspace
     del bpy.types.WindowManager.shapeflow_mode
     del bpy.types.Scene.shapeflow

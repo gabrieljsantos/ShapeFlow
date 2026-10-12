@@ -23,7 +23,6 @@ class SHAPEFLOW_OT_toggle_mode(bpy.types.Operator):
             context.area.tag_redraw()
         return {'FINISHED'}
 
-
 class SHAPEFLOW_OT_activate_tool(bpy.types.Operator):
     bl_idname = "shapeflow.activate_tool"
     bl_label = "Activate ShapeFlow Tool"
@@ -35,6 +34,12 @@ class SHAPEFLOW_OT_activate_tool(bpy.types.Operator):
             ('MOVE', "Move", "Move whole objects"),
         )
     )
+    rectangle_variant: bpy.props.EnumProperty(items=(
+        ('SETTINGS', "Current settings", "Use the current rectangle options"),
+        ('CORNER', "Corner to corner", "Define opposite corners"),
+        ('SQUARE', "Regular square", "Keep all sides equal"),
+        ('CENTER', "Mirrored from center", "Expand symmetrically from the first point"),
+    ), default='SETTINGS', options={'HIDDEN'})
 
     @classmethod
     def description(cls, _context, properties):
@@ -51,6 +56,14 @@ class SHAPEFLOW_OT_activate_tool(bpy.types.Operator):
 
     def execute(self, context):
         window_manager = context.window_manager
+        if self.tool == 'RECTANGLE':
+            settings = context.scene.shapeflow
+            if self.rectangle_variant == 'CORNER':
+                settings.creation_origin, settings.proportional_creation = 'DIAMETER', False
+            elif self.rectangle_variant == 'SQUARE':
+                settings.creation_origin, settings.proportional_creation = 'DIAMETER', True
+            elif self.rectangle_variant == 'CENTER':
+                settings.creation_origin, settings.proportional_creation = 'CENTER', False
         if window_manager.shapeflow_active_tool == self.tool:
             return {'FINISHED'}
         window_manager.shapeflow_active_tool = self.tool
@@ -60,19 +73,4 @@ class SHAPEFLOW_OT_activate_tool(bpy.types.Operator):
             bpy.ops.shapeflow.extrude_face('INVOKE_DEFAULT')
         elif self.tool == 'MOVE':
             bpy.ops.shapeflow.move_object('INVOKE_DEFAULT')
-        return {'FINISHED'}
-
-
-class SHAPEFLOW_OT_tool_placeholder(bpy.types.Operator):
-    bl_idname = "shapeflow.tool_placeholder"
-    bl_label = "Upcoming ShapeFlow Tool"
-
-    tool_name: bpy.props.StringProperty(options={'SKIP_SAVE'})
-
-    @classmethod
-    def description(cls, _context, properties):
-        return f"{properties.tool_name}: button reserved; interaction will be defined in a later version"
-
-    def execute(self, _context):
-        self.report({'INFO'}, f"ShapeFlow: {self.tool_name} is being designed")
         return {'FINISHED'}
