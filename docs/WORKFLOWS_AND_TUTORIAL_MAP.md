@@ -38,7 +38,15 @@ Use um perfil incorporado (Embedded) numa face. O contorno do desenho subdivide 
 3. Escolha **Union**, **Subtract** ou **Intersect**.
 4. Ajuste ou aplique o `Boolean Modifier` nativo quando quiser.
 
-`Intersect` mantém apenas o volume comum. **Solid Trim** corta um sólido usando outro; **Solid Split** cria os resultados complementarmente interno e externo. Essas ferramentas preservam o caráter editável dos modificadores quando aplicável.
+`Intersect` mantém apenas o volume comum. **Subtração** usa o objeto ativo como cortador e conserva o resultado no outro selecionado; **Subtração invertida** inverte esses papéis. **Dividir sólido** cria três resultados: a parte exclusiva do ativo, a interseção e a parte exclusiva do cortador.
+
+Os ícones usam dois volumes semitransparentes para indicar as entradas e contorno azul para mostrar a região do resultado. Em **Subtract**, o objeto ativo é o primeiro sólido (alvo) e o outro objeto selecionado é o cortador.
+
+### 3a. Combinar objetos
+
+Selecione pelo menos dois objetos `Mesh` e/ou `Curve` e escolha **Combine** em Organization. O resultado é um único objeto `Mesh`; curvas são convertidas em geometria de malha e partes que não se tocam continuam desconectadas. Use **Group** quando quiser manter os objetos independentes, ou **Union** quando quiser fundir volumes sobrepostos por operação booleana.
+
+Para desfazer essa organização geométrica, selecione o objeto combinado e escolha **Separate**. Cada ilha de malha desconectada volta a ser um objeto independente. Uma malha que forma uma peça conectada não pode ser separada por essa ferramenta.
 
 ### 4. Editar contornos e arestas
 
@@ -54,6 +62,7 @@ Use um perfil incorporado (Embedded) numa face. O contorno do desenho subdivide 
 - **Scale**: escala por fator, porcentagem ou dimensão final desejada.
 - **Copy Series**: cria repetição linear ou radial com quantidade, eixo e espaçamento/ângulo.
 - **Mirror**: adiciona modificador de espelho não destrutivo.
+- **Combine**: converte malhas/curvas selecionadas em um único objeto Mesh; não solda ilhas desconectadas.
 - **Group / Component**: agrupa sob um Empty nativo ou cria cópia vinculada que compartilha os dados da malha.
 
 ### 6. Medir e documentar
@@ -78,6 +87,7 @@ O catálogo atual inclui retângulos (canto, centro, 2 pontos e rotacionado), po
 | **Embedded** | Incorpora perfis compatíveis à malha receptora e divide a face. |
 | **Intersect** | Booleana de volume compartilhado entre dois sólidos. |
 | **Solid Split** | Separa o resultado em partes internas e externas ao cortador. |
+| **Combine** | Reúne objetos Mesh/Curve num objeto Mesh; as geometrias podem permanecer desconectadas. |
 
 ## Escopo e pontos a validar antes de gravar o tutorial
 

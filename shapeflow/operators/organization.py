@@ -1,6 +1,49 @@
 import bpy
 
-from ..mesh.organization import create_linked_instance, group_objects, make_instance_unique
+from ..mesh.organization import combine_objects, create_linked_instance, group_objects, make_instance_unique, separate_object
+
+
+class SHAPEFLOW_OT_combine_objects(bpy.types.Operator):
+    bl_idname = "shapeflow.combine_objects"
+    bl_label = "Combine"
+    bl_description = "Combine selected meshes and curves into one mesh object; disconnected parts stay separate"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    @classmethod
+    def poll(cls, context):
+        return (
+            context.window_manager.shapeflow_mode
+            and len(context.selected_objects) >= 2
+            and all(obj.type in {'MESH', 'CURVE'} for obj in context.selected_objects)
+        )
+
+    def execute(self, context):
+        try:
+            combine_objects(context, context.selected_objects)
+        except ValueError as error:
+            self.report({'WARNING'}, f"ShapeFlow: {error}")
+            return {'CANCELLED'}
+        return {'FINISHED'}
+
+
+class SHAPEFLOW_OT_separate_object(bpy.types.Operator):
+    bl_idname = "shapeflow.separate_object"
+    bl_label = "Separate"
+    bl_description = "Split a combined mesh into objects by disconnected parts"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    @classmethod
+    def poll(cls, context):
+        return context.window_manager.shapeflow_mode and context.active_object is not None and context.active_object.type == 'MESH'
+
+    def execute(self, context):
+        try:
+            parts = separate_object(context, context.active_object)
+        except ValueError as error:
+            self.report({'WARNING'}, f"ShapeFlow: {error}")
+            return {'CANCELLED'}
+        self.report({'INFO'}, f"ShapeFlow: separated into {len(parts)} objects")
+        return {'FINISHED'}
 
 
 class SHAPEFLOW_OT_group_objects(bpy.types.Operator):

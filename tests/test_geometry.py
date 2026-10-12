@@ -21,7 +21,7 @@ from shapeflow.mesh.curve_edit import extend_curve, trim_curve
 from shapeflow.mesh.inspection import inspect_solid
 from shapeflow.mesh.extrusion import extrude_face
 from shapeflow.mesh.offset import inset_face
-from shapeflow.mesh.organization import create_linked_instance, group_objects, make_instance_unique
+from shapeflow.mesh.organization import combine_objects, create_linked_instance, group_objects, make_instance_unique
 from shapeflow.mesh.repetition import add_linear_array, add_mirror_modifier, create_radial_series
 from shapeflow.mesh.sweep import apply_follow_me
 from shapeflow.mesh.solid_tools import split_solid, trim_solid
@@ -145,12 +145,15 @@ class ShapeFlowGeometryTests(unittest.TestCase):
         trim = trim_solid(target, cutter)
         self.assertEqual(trim.operation, 'DIFFERENCE')
         target.modifiers.remove(trim)
-        outside, inside = split_solid(bpy.context, target, cutter)
-        self.assertIs(outside.data, inside.data)
-        self.assertEqual(outside.modifiers[-1].operation, 'DIFFERENCE')
-        self.assertEqual(inside.modifiers[-1].operation, 'INTERSECT')
-        self.assertEqual(outside["shapeflow_solid_operation"], 'SPLIT_OUTSIDE')
-        self.assertEqual(inside["shapeflow_solid_operation"], 'SPLIT_INSIDE')
+        left, center, right = split_solid(bpy.context, target, cutter)
+        self.assertIs(left.data, center.data)
+        self.assertIs(right.data, cutter.data)
+        self.assertEqual(left.modifiers[-1].operation, 'DIFFERENCE')
+        self.assertEqual(center.modifiers[-1].operation, 'INTERSECT')
+        self.assertEqual(right.modifiers[-1].operation, 'DIFFERENCE')
+        self.assertEqual(left["shapeflow_solid_operation"], 'SPLIT_LEFT')
+        self.assertEqual(center["shapeflow_solid_operation"], 'SPLIT_CENTER')
+        self.assertEqual(right["shapeflow_solid_operation"], 'SPLIT_RIGHT')
 
     def test_solid_inspector_finds_closed_and_open_meshes(self):
         bpy.ops.mesh.primitive_cube_add(size=2.0)
@@ -176,6 +179,17 @@ class ShapeFlowGeometryTests(unittest.TestCase):
         self.assertIs(instance.data, first.data)
         make_instance_unique(instance)
         self.assertIsNot(instance.data, first.data)
+
+    def test_combine_meshes_and_curves_into_disconnected_mesh_object(self):
+        first = self.rectangle()
+        curve = create_poly_curve_object(bpy.context, [(3, 0, 0), (4, 0, 0)], "Combine curve")
+        combined = combine_objects(bpy.context, (first, curve))
+        self.assertEqual(combined.type, 'MESH')
+        self.assertEqual(len(combined.data.vertices), 6)
+        self.assertEqual(len(combined.data.polygons), 1)
+        self.assertFalse(first.select_get())
+        self.assertFalse(curve.select_get())
+        self.assertTrue(combined.select_get())
 
     def test_native_linear_radial_series_and_mirror(self):
         from mathutils import Vector

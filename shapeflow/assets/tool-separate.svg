@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- Two outward arrows mark splitting into separate pieces. -->
+  <path d="M27 11v42M27 32H8m0 0 9-9m-9 9 9 9" fill="none" stroke="#f59e42" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M37 11v42M37 32h19m0 0-9-9m9 9-9 9" fill="none" stroke="#69b7f4" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

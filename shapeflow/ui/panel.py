@@ -189,15 +189,16 @@ class SHAPEFLOW_PT_main(bpy.types.Panel):
             grid = solid_tools.grid_flow(row_major=True, columns=4, even_columns=True, even_rows=True, align=True)
             for identifier, operation in (
                 ('UNION', 'UNION'),
-                ('SUBTRACT', 'DIFFERENCE'),
                 ('INTERSECT', 'INTERSECT'),
             ):
-                operator = _tool_item(grid, identifier, "shapeflow.boolean", _tool_label(identifier))
+                operator = grid.operator("shapeflow.boolean", text=_tool_label(identifier), icon=tool_icon(identifier))
                 operator.operation = operation
             row = solid_tools.row(align=True)
-            operator = row.operator("shapeflow.solid_tool", text="Solid Trim", icon_value=tool_icon_value('SOLID_TRIM'))
-            operator.operation = 'TRIM'
-            operator = row.operator("shapeflow.solid_tool", text="Solid Split", icon_value=tool_icon_value('SOLID_SPLIT'))
+            operator = row.operator("shapeflow.solid_tool", text="Subtração", icon_value=tool_icon_value('SOLID_TRIM'))
+            operator.operation = 'DIFFERENCE_1_2'
+            operator = row.operator("shapeflow.solid_tool", text="Subtração invertida", icon_value=tool_icon_value('SOLID_TRIM_REVERSE'))
+            operator.operation = 'DIFFERENCE_2_1'
+            operator = solid_tools.operator("shapeflow.solid_tool", text="Dividir sólido", icon=tool_icon('SOLID_SPLIT'))
             operator.operation = 'SPLIT'
 
         precision = _tool_panel(tools, "SHAPEFLOW_PT_precision_tools", "Precision", default_closed=False)
@@ -224,6 +225,9 @@ class SHAPEFLOW_PT_main(bpy.types.Panel):
 
         organization = _tool_panel(tools, "SHAPEFLOW_PT_organization_tools", "Organization", default_closed=True)
         if organization:
+            row = organization.row(align=True)
+            row.operator("shapeflow.combine_objects", text="Combine", icon_value=tool_icon_value('COMBINE'))
+            row.operator("shapeflow.separate_object", text="Separate", icon_value=tool_icon_value('SEPARATE'))
             row = organization.row(align=True)
             row.operator("shapeflow.group_objects", text="Group", icon_value=tool_icon_value('GROUP'))
             operator = row.operator("shapeflow.component", text="Linked copy", icon_value=tool_icon_value('COMPONENT'))

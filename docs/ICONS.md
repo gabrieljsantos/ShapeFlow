@@ -49,8 +49,11 @@ altere o valor associado ao identificador da ferramenta.
 | Solids | Union | `UNION` |
 | Solids | Subtract | `SUBTRACT` |
 | Solids | Intersect | `INTERSECT` |
-| Solids | Solid Trim | `SOLID_TRIM` |
-| Solids | Solid Split | `SOLID_SPLIT` |
+| Solids | Subtração | `SOLID_TRIM` |
+| Solids | Subtração invertida (ícone espelhado) | `SOLID_TRIM_REVERSE` |
+| Solids | Dividir sólido | `SOLID_SPLIT` |
+| Organization | Combine meshes and curves | `COMBINE` |
+| Organization | Separate disconnected mesh parts | `SEPARATE` |
 | Organization | Group | `GROUP` |
 | Organization | Component | `COMPONENT` |
 | Precision | Tape Measure | `MEASURE` |

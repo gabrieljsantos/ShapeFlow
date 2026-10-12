@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- Polygon and circle overlap; plus sits at the lower-right like the sketch. -->
+  <path d="M7 29 19 8 39 14 37 34 27 51 20 41 10 36z" fill="#f59e42" fill-opacity=".24" stroke="#f59e42" stroke-width="2.7" stroke-linejoin="round"/>
+  <circle cx="39" cy="25" r="17" fill="#f59e42" fill-opacity=".2" stroke="#f59e42" stroke-width="2.7"/>
+  <path d="M48 49h10m-5-5v10" fill="none" stroke="#f59e42" stroke-width="2.8" stroke-linecap="round"/>
+</svg>

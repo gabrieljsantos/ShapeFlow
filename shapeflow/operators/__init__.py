@@ -9,7 +9,7 @@ from .curve_edit import SHAPEFLOW_OT_curve_edit
 from .extrude_face import SHAPEFLOW_OT_extrude_face
 from .follow_me import SHAPEFLOW_OT_follow_me
 from .offset_face import SHAPEFLOW_OT_offset_face
-from .organization import SHAPEFLOW_OT_component, SHAPEFLOW_OT_group_objects
+from .organization import SHAPEFLOW_OT_combine_objects, SHAPEFLOW_OT_component, SHAPEFLOW_OT_group_objects, SHAPEFLOW_OT_separate_object
 from .repetition import SHAPEFLOW_OT_copy_series, SHAPEFLOW_OT_mirror
 from .mode import SHAPEFLOW_OT_activate_tool, SHAPEFLOW_OT_toggle_mode
 from .spatial import SHAPEFLOW_OT_move_object
@@ -33,6 +33,8 @@ CLASSES = (
     SHAPEFLOW_OT_follow_me,
     SHAPEFLOW_OT_offset_face,
     SHAPEFLOW_OT_group_objects,
+    SHAPEFLOW_OT_combine_objects,
+    SHAPEFLOW_OT_separate_object,
     SHAPEFLOW_OT_component,
     SHAPEFLOW_OT_copy_series,
     SHAPEFLOW_OT_mirror,
